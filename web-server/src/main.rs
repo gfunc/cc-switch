@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tower_http::{
     cors::{Any, CorsLayer},
-    services::ServeDir,
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 use tracing::{info, error};
@@ -95,7 +95,8 @@ fn create_router(state: Arc<AppState>, ws_state: Arc<WsState>) -> Router {
     Router::new()
         .nest("/api/v1", api_routes)
         .route("/health", get(health_check))
-        .fallback_service(ServeDir::new("dist").append_index_html_on_directories(true))
+        .nest_service("/assets", ServeDir::new("dist/assets"))
+        .fallback_service(ServeFile::new("dist/index.html"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
 }
