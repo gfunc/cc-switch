@@ -69,6 +69,9 @@ import WorkspaceFilesPanel from "@/components/workspace/WorkspaceFilesPanel";
 import EnvPanel from "@/components/openclaw/EnvPanel";
 import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
+import { ThemeProvider } from "@/components/theme-provider";
+import { getAuthToken } from "@/lib/api/web-client";
+import { LoginPage } from "@/components/auth/LoginPage";
 
 type View =
   | "providers"
@@ -137,9 +140,24 @@ const getInitialView = (): View => {
   return "providers";
 };
 
+// Detect web mode (running in browser instead of Tauri)
+const isWebMode = import.meta.env.VITE_CC_SWITCH_MODE === "web";
+
 function App() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+
+  // Web mode auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (!isWebMode) return true; // Always authenticated in Tauri mode
+    return !!getAuthToken();
+  });
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+
 
   const [activeApp, setActiveApp] = useState<AppId>(getInitialApp);
   const [currentView, setCurrentView] = useState<View>(getInitialView);
@@ -805,6 +823,15 @@ function App() {
       </AnimatePresence>
     );
   };
+
+  // Web mode: Show login page if not authenticated
+  if (isWebMode && !isAuthenticated) {
+    return (
+      <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
+        <LoginPage onLogin={handleLogin} />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <div
