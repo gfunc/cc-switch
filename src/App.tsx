@@ -340,6 +340,7 @@ function App() {
     if (isWebMode) return;
     let unsubscribe: (() => void) | undefined;
     let active = true;
+    const setupListener = async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         const off = await listen(
