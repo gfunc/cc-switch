@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api/v1";
+  import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 let authToken: string | null = localStorage.getItem("cc_switch_token");
 
@@ -91,7 +91,8 @@ export async function del<T>(url: string): Promise<T> {
 export function connectWebSocket(
   onMessage: (data: unknown) => void,
 ): () => void {
-  const wsUrl = API_BASE_URL.replace(/^http/, "ws").replace("/api/v1", "/ws");
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
   const ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
