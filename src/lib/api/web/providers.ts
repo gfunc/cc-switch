@@ -1,59 +1,113 @@
 import { get, post, put, del, connectWebSocket } from "../web-client";
-import type { Provider } from "@/types";
-export type AppId = "claude" | "codex" | "gemini" | "opencode" | "openclaw";
+import type {
+  Provider,
+  UniversalProvider,
+  UniversalProvidersMap,
+} from "@/types";
+import type { AppId } from "./types";
+
+export interface ProviderSortUpdate {
+  id: string;
+  sortIndex: number;
+}
 
 export interface ProviderSwitchEvent {
   appType: AppId;
   providerId: string;
-  timestamp: number;
 }
 
-export async function listProviders(
-  app: AppId,
-): Promise<Record<string, Provider>> {
-  return get(`/providers?app=${app}`);
-}
+export const providersApi = {
+  async getAll(appId: AppId): Promise<Record<string, Provider>> {
+    return get(`/providers?app=${appId}`);
+  },
 
-export async function getProvider(id: string): Promise<Provider | null> {
-  return get(`/providers/${id}`);
-}
+  async getCurrent(appId: AppId): Promise<string | null> {
+    return get(`/providers/current?app=${appId}`);
+  },
 
-export async function createProvider(
-  app: AppId,
-  provider: Omit<Provider, "id" | "createdAt">,
-): Promise<string> {
-  return post("/providers", { ...provider, app });
-}
+  async add(provider: Provider, appId: AppId): Promise<boolean> {
+    return post("/providers", { provider, app: appId });
+  },
 
-export async function updateProvider(
-  id: string,
-  provider: Partial<Provider>,
-): Promise<boolean> {
-  return put(`/providers/${id}`, provider);
-}
+  async update(provider: Provider, appId: AppId): Promise<boolean> {
+    return put(`/providers/${provider.id}`, { provider, app: appId });
+  },
 
-export async function deleteProvider(id: string): Promise<boolean> {
-  return del(`/providers/${id}`);
-}
+  async delete(id: string, appId: AppId): Promise<boolean> {
+    return del(`/providers/${id}?app=${appId}`);
+  },
 
-export async function switchProvider(app: AppId, id: string): Promise<boolean> {
-  return post(`/providers/${id}/switch?app=${app}`);
-}
+  async removeFromLiveConfig(id: string, appId: AppId): Promise<boolean> {
+    return post(`/providers/${id}/remove-from-live`, { app: appId });
+  },
 
-export async function getCurrentProvider(app: AppId): Promise<string | null> {
-  return get(`/providers/current?app=${app}`);
-}
+  async switch(id: string, appId: AppId): Promise<boolean> {
+    return post(`/providers/${id}/switch`, { app: appId });
+  },
 
-export function onProviderSwitched(
-  callback: (event: ProviderSwitchEvent) => void,
-): () => void {
-  return connectWebSocket((data: any) => {
-    if (data.event === "provider.switched") {
-      callback({
-        appType: data.data.app,
-        providerId: data.data.id,
-        timestamp: data.timestamp,
-      });
-    }
-  });
-}
+  async importDefault(appId: AppId): Promise<boolean> {
+    return post("/providers/import-default", { app: appId });
+  },
+
+  async updateTrayMenu(): Promise<boolean> {
+    console.warn("update_tray_menu not available in web mode");
+    return true;
+  },
+
+  async updateSortOrder(
+    updates: ProviderSortUpdate[],
+    appId: AppId,
+  ): Promise<boolean> {
+    return post("/providers/sort", { updates, app: appId });
+  },
+
+  onSwitched(handler: (event: ProviderSwitchEvent) => void): () => void {
+    return connectWebSocket((data: any) => {
+      if (data.event === "provider.switched") {
+        handler({
+          appType: data.data.app,
+          providerId: data.data.id,
+        });
+      }
+    });
+  },
+
+  async openTerminal(_providerId: string, _appId: AppId): Promise<boolean> {
+    console.warn("open_provider_terminal not available in web mode");
+    return false;
+  },
+
+  async importOpenCodeFromLive(): Promise<number> {
+    return post("/providers/import-opencode-live", {});
+  },
+
+  async getOpenCodeLiveProviderIds(): Promise<string[]> {
+    return get("/providers/opencode-live-ids");
+  },
+
+  async getOpenClawLiveProviderIds(): Promise<string[]> {
+    return get("/providers/openclaw-live-ids");
+  },
+};
+
+export const universalProvidersApi = {
+  async getAll(): Promise<UniversalProvidersMap> {
+    return get("/universal-providers");
+  },
+
+  async get(id: string): Promise<UniversalProvider | null> {
+    return get(`/universal-providers/${id}`);
+  },
+
+  async upsert(provider: UniversalProvider): Promise<boolean> {
+    return post("/universal-providers", provider);
+  },
+
+  async delete(id: string): Promise<boolean> {
+    return del(`/universal-providers/${id}`);
+  },
+
+  async sync(id: string): Promise<boolean> {
+    return post(`/universal-providers/${id}/sync`, {});
+  },
+};
