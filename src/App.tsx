@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
@@ -338,25 +337,24 @@ function App() {
   }, [queryClient]);
 
   useEffect(() => {
+    if (isWebMode) return;
     let unsubscribe: (() => void) | undefined;
     let active = true;
-
-    const setupListener = async () => {
       try {
+        const { listen } = await import('@tauri-apps/api/event');
         const off = await listen(
-          "webdav-sync-status-updated",
+          'webdav-sync-status-updated',
           async (event) => {
             const payload = (event.payload ??
               {}) as WebDavSyncStatusUpdatedPayload;
-            await queryClient.invalidateQueries({ queryKey: ["settings"] });
+            await queryClient.invalidateQueries({ queryKey: ['settings'] });
 
-            if (payload.source !== "auto" || payload.status !== "error") {
+            if (payload.source !== 'auto' || payload.status !== 'error') {
               return;
             }
-
             toast.error(
-              t("settings.webdavSync.autoSyncFailedToast", {
-                error: payload.error || t("common.unknown"),
+              t('settings.webdavSync.autoSyncFailedToast', {
+                error: payload.error || t('common.unknown'),
               }),
             );
           },
@@ -368,12 +366,11 @@ function App() {
         unsubscribe = off;
       } catch (error) {
         console.error(
-          "[App] Failed to subscribe webdav-sync-status-updated event",
+          '[App] Failed to subscribe webdav-sync-status-updated event',
           error,
         );
       }
     };
-
     void setupListener();
     return () => {
       active = false;
@@ -407,47 +404,49 @@ function App() {
 
   useEffect(() => {
     const checkMigration = async () => {
+      if (isWebMode) return;
       try {
-        const migrated = await invoke<boolean>("get_migration_result");
+        const { invoke } = await import('@tauri-apps/api/core');
+        const migrated = await invoke<boolean>('get_migration_result');
         if (migrated) {
           toast.success(
-            t("migration.success", { defaultValue: "配置迁移成功" }),
+            t('migration.success', { defaultValue: '配置迁移成功' }),
             { closeButton: true },
           );
         }
       } catch (error) {
-        console.error("[App] Failed to check migration result:", error);
+        console.error('[App] Failed to check migration result:', error);
       }
     };
-
     checkMigration();
   }, [t]);
 
   useEffect(() => {
     const checkSkillsMigration = async () => {
+      if (isWebMode) return;
       try {
+        const { invoke } = await import('@tauri-apps/api/core');
         const result = await invoke<{ count: number; error?: string } | null>(
-          "get_skills_migration_result",
+          'get_skills_migration_result',
         );
         if (result?.error) {
-          toast.error(t("migration.skillsFailed"), {
-            description: t("migration.skillsFailedDescription"),
+          toast.error(t('migration.skillsFailed'), {
+            description: t('migration.skillsFailedDescription'),
             closeButton: true,
           });
-          console.error("[App] Skills SSOT migration failed:", result.error);
+          console.error('[App] Skills SSOT migration failed:', result.error);
           return;
         }
         if (result && result.count > 0) {
-          toast.success(t("migration.skillsSuccess", { count: result.count }), {
+          toast.success(t('migration.skillsSuccess', { count: result.count }), {
             closeButton: true,
           });
-          await queryClient.invalidateQueries({ queryKey: ["skills"] });
+          await queryClient.invalidateQueries({ queryKey: ['skills'] });
         }
       } catch (error) {
-        console.error("[App] Failed to check skills migration result:", error);
+        console.error('[App] Failed to check skills migration result:', error);
       }
     };
-
     checkSkillsMigration();
   }, [t, queryClient]);
 
