@@ -84,17 +84,18 @@ fn create_router(state: Arc<AppState>, ws_state: Arc<WsState>) -> Router {
         .nest("/skills", skills::routes())
         .nest("/sessions", sessions::routes())
         .nest("/proxy", proxy::routes())
-        .route("/ws", get(handlers::ws::ws_handler))
         .layer(axum::middleware::from_fn(middleware::auth_middleware))
         .with_state(shared_state.clone());
-
     let api_routes = Router::new()
         .nest("/auth", auth::routes())
         .merge(protected_routes);
-
+    let ws_route = Router::new()
+        .route("/ws", get(handlers::ws::ws_handler))
+        .with_state(shared_state.clone());
     Router::new()
         .nest("/api/v1", api_routes)
         .route("/health", get(health_check))
+        .merge(ws_route)
         .nest_service("/assets", ServeDir::new("dist/assets"))
         .fallback_service(ServeFile::new("dist/index.html"))
         .layer(cors)
