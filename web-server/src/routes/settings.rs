@@ -64,7 +64,7 @@ async fn list_settings(
         match serde_json::from_str::<Settings>(&json_str) {
             Ok(settings) => Json(ApiResponse::success(settings)),
             Err(e) => {
-                log::warn!("Failed to parse app_settings from DB: {}. Returning defaults.", e);
+                eprintln!("Failed to parse app_settings from DB: {}. Returning defaults.", e);
                 Json(ApiResponse::success(default_settings()))
             }
         }
@@ -82,7 +82,7 @@ async fn update_settings(
             let res = state.with_db(|db: &Connection| {
                 db.execute(
                     "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                    [&"app_settings",&json_str],
+                    rusqlite::params!["app_settings", json_str],
                 )
                 .map_err(|e| e.to_string())
             });

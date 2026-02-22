@@ -33,31 +33,32 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/config/app", post(update_app_config))
 }
 
+fn get_setting_string(db: &Connection, key: &str) -> Option<String> {
+    db.prepare("SELECT value FROM settings WHERE key = ?1")
+        .ok()?
+        .query_row([key], |row| row.get::<_, String>(0))
+        .ok()
+}
+
 async fn get_proxy_status(
     State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
 ) -> Json<ApiResponse<serde_json::Value>> {
     let running: bool = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_running'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        Some(val.map(|v| v == "1").unwrap_or(false))
-    }).unwrap_or(false);
+        get_setting_string(db, "proxy_running")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+    });
     
     let port: i64 = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_port'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        val.and_then(|v| v.parse().ok()).unwrap_or(0)
+        get_setting_string(db, "proxy_port")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
     });
     
     let takeover_status: HashMap<String, bool> = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_takeover_status'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        val.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_default()
+        get_setting_string(db, "proxy_takeover_status")
+            .and_then(|v| serde_json::from_str(&v).ok())
+            .unwrap_or_default()
     });
     
     Json(ApiResponse::success(json!({
@@ -137,11 +138,9 @@ async fn get_takeover_status(
     State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
 ) -> Json<ApiResponse<HashMap<String, bool>>> {
     let status: HashMap<String, bool> = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_takeover_status'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        val.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_default()
+        get_setting_string(db, "proxy_takeover_status")
+            .and_then(|v| serde_json::from_str(&v).ok())
+            .unwrap_or_default()
     });
     
     Json(ApiResponse::success(status))
@@ -155,12 +154,9 @@ async fn set_takeover(
     let enabled = payload.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
     
     let result = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_takeover_status'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        let mut status: HashMap<String, bool> = val
-            .and_then(|v| serde_json::from_str(&v).ok())
+        let status_str = get_setting_string(db, "proxy_takeover_status");
+        let mut status: HashMap<String, bool> = status_str
+            .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
         
         status.insert(app.to_string(), enabled);
@@ -189,11 +185,9 @@ async fn get_proxy_config(
     State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
 ) -> Json<ApiResponse<serde_json::Value>> {
     let config: serde_json::Value = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_config'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        val.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_else(|| json!({}))
+        get_setting_string(db, "proxy_config")
+            .and_then(|v| serde_json::from_str(&v).ok())
+            .unwrap_or_else(|| json!({}))
     });
     
     Json(ApiResponse::success(config))
@@ -227,11 +221,9 @@ async fn get_global_config(
     State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
 ) -> Json<ApiResponse<serde_json::Value>> {
     let config: serde_json::Value = state.with_db(|db: &Connection| {
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = 'proxy_global_config'"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
-        val.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_else(|| json!({}))
+        get_setting_string(db, "proxy_global_config")
+            .and_then(|v| serde_json::from_str(&v).ok())
+            .unwrap_or_else(|| json!({}))
     });
     
     Json(ApiResponse::success(config))
@@ -269,11 +261,15 @@ async fn get_app_config(
     
     let config: serde_json::Value = state.with_db(|db: &Connection| {
         let key = format!("proxy_app_config_{}", app);
-        let mut stmt = db.prepare(
-            "SELECT value FROM settings WHERE key = ?1"
-        ).ok()?;
-        let val: Option<String> = stmt.query_row([&key], |row| row.get(0)).ok();
-        val.and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_else(|| json!({}))
+        match db.prepare("SELECT value FROM settings WHERE key = ?1") {
+            Ok(mut stmt) => {
+                stmt.query_row([&key], |row| row.get::<_, String>(0))
+                    .ok()
+                    .and_then(|v| serde_json::from_str(&v).ok())
+                    .unwrap_or_else(|| json!({}))
+            }
+            Err(_) => json!({})
+        }
     });
     
     Json(ApiResponse::success(config))
