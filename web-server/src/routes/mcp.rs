@@ -301,7 +301,7 @@ async fn import_mcp(
                 }
             }
 
-            let res: Result<(), String> = state.with_db(|db: &Connection| {
+            let res: Result<(), String> = state.with_db_mut(|db: &mut Connection| {
                 let tx = db.transaction().map_err(|e| e.to_string())?;
                 for (id, spec_val) in servers_obj.iter() {
                     let name = spec_val.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();

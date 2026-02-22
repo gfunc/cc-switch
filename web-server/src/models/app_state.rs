@@ -25,4 +25,12 @@ impl AppState {
         let db = self.db.lock().unwrap();
         f(&db)
     }
+
+    pub fn with_db_mut<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&mut Connection) -> T,
+    {
+        let mut db = self.db.lock().unwrap();
+        f(&mut db)
+    }
 }
