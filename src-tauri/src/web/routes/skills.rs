@@ -8,7 +8,7 @@ use std::sync::Arc;
 use rusqlite::Connection;
 use serde_json::json;
 
-use crate::{
+use crate::web::{
     models::{
         app_state::AppState,
         Skill,

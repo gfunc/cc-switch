@@ -53,9 +53,10 @@ fn get_web_assets_path() -> PathBuf {
 
 pub fn create_router(state: Arc<AppState>, ws_state: Arc<WsState>) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(Any) // Required for local/remote browser access
         .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_headers(Any)
+        .allow_credentials(false);
 
     let shared_state = (state, ws_state);
 

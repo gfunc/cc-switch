@@ -8,8 +8,28 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation,
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env;
+use std::sync::OnceLock;
 
 const TOKEN_EXPIRATION_SECONDS: usize = 24 * 60 * 60;
+
+/// Cached JWT secret — initialized once on first use.
+static JWT_SECRET: OnceLock<String> = OnceLock::new();
+
+/// Get or generate the JWT secret.
+/// Priority: JWT_SECRET env var > generate a random one (persisted in env for the process lifetime).
+fn get_jwt_secret() -> &'static str {
+    JWT_SECRET.get_or_init(|| {
+        if let Ok(secret) = env::var("JWT_SECRET") {
+            if !secret.is_empty() {
+                return secret;
+            }
+        }
+        // Generate a random secret for this process lifetime
+        let secret = uuid::Uuid::new_v4().to_string();
+        log::info!("Generated random JWT secret for this session");
+        secret
+    })
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -48,7 +68,7 @@ pub async fn auth_middleware(
 }
 
 pub fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-    let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "default-secret-key".to_string());
+    let secret = get_jwt_secret();
     let validation = Validation::new(Algorithm::HS256);
     decode::<Claims>(
         token,
@@ -59,7 +79,7 @@ pub fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error
 }
 
 pub fn generate_token(user_id: &str) -> Result<String, jsonwebtoken::errors::Error> {
-    let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "default-secret-key".to_string());
+    let secret = get_jwt_secret();
     let now = chrono::Utc::now().timestamp() as usize;
     let exp = now + TOKEN_EXPIRATION_SECONDS;
 

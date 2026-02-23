@@ -4,9 +4,9 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use crate::{
+use crate::web::{
     models::ApiResponse,
-    middleware::auth::{generate_token, validate_token},
+    middleware::auth::validate_token,
 };
 
 #[derive(Debug, Deserialize)]
@@ -21,7 +21,9 @@ pub struct VerifyTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
+    #[allow(dead_code)]
     pub username: String,
+    #[allow(dead_code)]
     pub password: String,
 }
 
@@ -54,8 +56,4 @@ async fn login_deprecated(
     Json(ApiResponse::error(
         "Password login is no longer supported. Please generate a token using the CLI: cc-switch-web generate-token".to_string()
     ))
-}
-
-pub fn generate_admin_token() -> Result<String, jsonwebtoken::errors::Error> {
-    generate_token("admin")
 }

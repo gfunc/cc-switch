@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm tauri dev",
     "build": "pnpm tauri build",
+    "build:linux": "PKG_CONFIG=/usr/bin/pkg-config PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig pnpm tauri build",
     "tauri": "tauri",
     "dev:renderer": "vite",
     "build:renderer": "vite build",
@@ -14,7 +15,12 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json}\"",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest watch"
+    "test:unit:watch": "vitest watch",
+    "headless": "PKG_CONFIG=/usr/bin/pkg-config PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig pnpm tauri build --no-bundle && ./src-tauri/target/release/cc-switch --headless",
+    "headless:web": "PKG_CONFIG=/usr/bin/pkg-config PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig pnpm tauri build --no-bundle && ./src-tauri/target/release/cc-switch --headless --enable-web",
+    "headless:daemon": "PKG_CONFIG=/usr/bin/pkg-config PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig pnpm tauri build --no-bundle && ./src-tauri/target/release/cc-switch --headless --daemon",
+    "headless:debug": "./src-tauri/target/debug/cc-switch --headless",
+    "headless:debug:web": "./src-tauri/target/debug/cc-switch --headless --enable-web"
   },
   "keywords": [],
   "author": "Jason Young",

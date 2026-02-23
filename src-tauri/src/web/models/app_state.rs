@@ -35,7 +35,8 @@ impl AppState {
                 icon TEXT,
                 icon_color TEXT,
                 in_failover_queue BOOLEAN,
-                app_type TEXT DEFAULT 'claude'
+                app_type TEXT DEFAULT 'claude',
+                is_current BOOLEAN DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS settings (
@@ -87,6 +88,13 @@ impl AppState {
                 last_active_at INTEGER,
                 source_path TEXT,
                 resume_command TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS session_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                messages TEXT,
+                FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS proxy_settings (

@@ -3,8 +3,8 @@ set -e
 
 echo "Building CC Switch Web Frontend..."
 
-# Build the web frontend
-npm run build
+# Build only the renderer (not the full Tauri app)
+pnpm run build:renderer
 
 # Copy the built files to src-tauri/web-dist
 echo "Copying web assets to src-tauri/web-dist..."

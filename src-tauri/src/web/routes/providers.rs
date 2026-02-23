@@ -5,7 +5,7 @@ use axum::{
     extract::{State, Path, Query, Multipart},
 };
 use std::sync::Arc;
-use crate::{
+use crate::web::{
     models::{
         app_state::AppState,
         Provider,
@@ -47,7 +47,7 @@ async fn import_from_upload(
     let mut file_content: Option<Vec<u8>> = None;
     let mut file_name: Option<String> = None;
     
-    while let Ok(Some(mut field)) = multipart.next_field().await {
+    while let Ok(Some(field)) = multipart.next_field().await {
         if field.name() == Some("config") {
             file_name = field.file_name().map(|s| s.to_string());
             if let Ok(data) = field.bytes().await {
@@ -677,14 +677,14 @@ async fn add_custom_endpoint(
 }
 
 async fn remove_custom_endpoint(
-    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+    State((_state, _)): State<(Arc<AppState>, Arc<WsState>)>,
     Path((_id, _url)): Path<(String, String)>,
 ) -> Json<ApiResponse<bool>> {
     Json(ApiResponse::success(true))
 }
 
 async fn update_sort_order(
-    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+    State((_state, _)): State<(Arc<AppState>, Arc<WsState>)>,
     Json(_updates): Json<Vec<serde_json::Value>>,
 ) -> Json<ApiResponse<bool>> {
     Json(ApiResponse::success(true))

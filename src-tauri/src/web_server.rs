@@ -14,7 +14,11 @@ static WEB_SERVER_HANDLE: Lazy<Mutex<Option<tokio::task::JoinHandle<()>>>> = Laz
 });
 
 static WEB_SERVER_PORT: Lazy<Mutex<u16>> = Lazy::new(|| {
-    Mutex::const_new(3000)
+    Mutex::const_new(3001)
+});
+
+static WEB_SERVER_BIND_ALL: Lazy<Mutex<bool>> = Lazy::new(|| {
+    Mutex::const_new(false)
 });
 
 /// Check if web server should auto-start from env var
@@ -30,7 +34,7 @@ pub fn get_web_server_port() -> u16 {
     std::env::var("CC_SWITCH_WEB_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
-        .unwrap_or(3000)
+        .unwrap_or(3001)
 }
 
 /// Check if web server should bind to all interfaces (0.0.0.0) or just localhost (127.0.0.1)
@@ -41,7 +45,7 @@ pub fn should_bind_to_all_interfaces() -> bool {
         .unwrap_or(false)
 }
 
-/// Get the bind address based on env var
+/// Get the bind address based on bind_all flag
 pub fn get_bind_address() -> [u8; 4] {
     if should_bind_to_all_interfaces() {
         [0, 0, 0, 0]
@@ -50,11 +54,16 @@ pub fn get_bind_address() -> [u8; 4] {
     }
 }
 
+fn bind_address_from_flag(bind_all: bool) -> [u8; 4] {
+    if bind_all { [0, 0, 0, 0] } else { [127, 0, 0, 1] }
+}
+
 /// Start the embedded web server
 #[tauri::command]
 pub async fn start_web_server(
     app: tauri::AppHandle,
     port: Option<u16>,
+    bind_all: Option<bool>,
 ) -> Result<String, String> {
     // Set the resource directory for web assets
     if let Ok(resource_dir) = app.path().resource_dir() {
@@ -68,7 +77,8 @@ pub async fn start_web_server(
     }
     
     let port = port.unwrap_or_else(get_web_server_port);
-    let bind_addr = get_bind_address();
+    let bind_all = bind_all.unwrap_or_else(should_bind_to_all_interfaces);
+    let bind_addr = bind_address_from_flag(bind_all);
     let addr = SocketAddr::from((bind_addr, port));
     
     // Get app state from Tauri
@@ -91,8 +101,9 @@ pub async fn start_web_server(
         .await
         .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
     
-    // Store port for later reference
+    // Store state for later reference
     *WEB_SERVER_PORT.lock().await = port;
+    *WEB_SERVER_BIND_ALL.lock().await = bind_all;
     
     // Start server in background task
     let handle = tokio::spawn(async move {
@@ -108,17 +119,13 @@ pub async fn start_web_server(
     *handle_guard = Some(handle);
     
     // Determine display URL based on bind address
-    let display_host = if should_bind_to_all_interfaces() {
-        "0.0.0.0"
-    } else {
-        "localhost"
-    };
+    let display_host = if bind_all { "0.0.0.0" } else { "localhost" };
     
     // Emit event to frontend
     let _ = app.emit("web-server-started", serde_json::json!({
         "url": format!("http://{}:{}", display_host, port),
         "port": port,
-        "bindAll": should_bind_to_all_interfaces(),
+        "bindAll": bind_all,
     }));
     
     Ok(format!("http://{}:{}", display_host, port))
@@ -153,7 +160,9 @@ pub async fn is_web_server_running() -> bool {
 pub async fn get_web_server_url() -> Option<String> {
     if WEB_SERVER_HANDLE.lock().await.is_some() {
         let port = *WEB_SERVER_PORT.lock().await;
-        Some(format!("http://localhost:{}", port))
+        let bind_all = *WEB_SERVER_BIND_ALL.lock().await;
+        let host = if bind_all { "0.0.0.0" } else { "localhost" };
+        Some(format!("http://{}:{}", host, port))
     } else {
         None
     }
@@ -163,7 +172,7 @@ pub async fn get_web_server_url() -> Option<String> {
 pub async fn auto_start_web_server(app: tauri::AppHandle) -> Result<(), String> {
     if should_auto_start_web_server() {
         log::info!("Auto-starting web server (CC_SWITCH_ENABLE_WEB is set)");
-        start_web_server(app, None).await.map(|_| ())
+        start_web_server(app, None, None).await.map(|_| ())
     } else {
         Ok(())
     }
@@ -172,5 +181,30 @@ pub async fn auto_start_web_server(app: tauri::AppHandle) -> Result<(), String> 
 /// Check if web server is configured to bind to all interfaces
 #[tauri::command]
 pub async fn is_web_server_bind_all() -> bool {
-    should_bind_to_all_interfaces()
+    *WEB_SERVER_BIND_ALL.lock().await
+}
+
+/// Generate a JWT token for web access
+#[tauri::command]
+pub async fn generate_web_token() -> Result<String, String> {
+    crate::web::middleware::auth::generate_token("admin")
+        .map_err(|e| format!("Failed to generate token: {}", e))
+}
+
+/// Get web server configuration
+#[tauri::command]
+pub async fn get_web_server_config() -> serde_json::Value {
+    let running = WEB_SERVER_HANDLE.lock().await.is_some();
+    let port = *WEB_SERVER_PORT.lock().await;
+    let bind_all = *WEB_SERVER_BIND_ALL.lock().await;
+    let host = if bind_all { "0.0.0.0" } else { "localhost" };
+    
+    serde_json::json!({
+        "running": running,
+        "port": port,
+        "bindAll": bind_all,
+        "url": if running { Some(format!("http://{}:{}", host, port)) } else { None::<String> },
+        "defaultPort": get_web_server_port(),
+        "defaultBindAll": should_bind_to_all_interfaces(),
+    })
 }

@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use rusqlite::Connection;
 use serde_json::json;
 
-use crate::{
+use crate::web::{
     models::{
         app_state::AppState,
         McpServer,

@@ -9,6 +9,7 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Key,
 } from "lucide-react";
 import { toast } from "sonner";
 import { invoke } from "@tauri-apps/api/core";
@@ -22,6 +23,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export function WebServerSettings() {
@@ -30,7 +34,10 @@ export function WebServerSettings() {
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
   const [bindAll, setBindAll] = useState(false);
+  const [port, setPort] = useState(3001);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     checkServerStatus();
@@ -40,15 +47,25 @@ export function WebServerSettings() {
 
   const checkServerStatus = async () => {
     try {
-      const running = await invoke<boolean>("is_web_server_running");
-      setIsRunning(running);
-      if (running) {
-        const url = await invoke<string | null>("get_web_server_url");
-        setServerUrl(url);
-        const bindAllStatus = await invoke<boolean>("is_web_server_bind_all");
-        setBindAll(bindAllStatus);
+      const config = await invoke<{
+        running: boolean;
+        port: number;
+        bindAll: boolean;
+        url: string | null;
+        defaultPort: number;
+        defaultBindAll: boolean;
+      }>("get_web_server_config");
+
+      setIsRunning(config.running);
+      setServerUrl(config.url);
+
+      if (config.running) {
+        setBindAll(config.bindAll);
+        setPort(config.port);
       } else {
-        setServerUrl(null);
+        // Show defaults when not running so user can configure before start
+        setPort(config.defaultPort);
+        setBindAll(config.defaultBindAll);
       }
     } catch (error) {
       console.error("Failed to check web server status:", error);
@@ -58,7 +75,10 @@ export function WebServerSettings() {
   const handleStart = async () => {
     setIsLoading(true);
     try {
-      const url = await invoke<string>("start_web_server", { port: null });
+      const url = await invoke<string>("start_web_server", {
+        port,
+        bindAll,
+      });
       setServerUrl(url);
       setIsRunning(true);
       toast.success(
@@ -85,6 +105,7 @@ export function WebServerSettings() {
       await invoke("stop_web_server");
       setIsRunning(false);
       setServerUrl(null);
+      setToken(null);
       toast.success(
         t("settings.webServer.stopped", {
           defaultValue: "Web server stopped",
@@ -103,13 +124,47 @@ export function WebServerSettings() {
     }
   };
 
+  const handleGenerateToken = async () => {
+    try {
+      const newToken = await invoke<string>("generate_web_token");
+      setToken(newToken);
+      toast.success(
+        t("settings.webServer.tokenGenerated", {
+          defaultValue: "Access token generated",
+        }),
+      );
+    } catch (error) {
+      console.error("Failed to generate token:", error);
+      toast.error(
+        t("settings.webServer.tokenFailed", {
+          defaultValue: "Failed to generate token",
+        }),
+      );
+    }
+  };
+
+  const handleCopyToken = async () => {
+    if (token) {
+      try {
+        await navigator.clipboard.writeText(token);
+        setCopiedToken(true);
+        setTimeout(() => setCopiedToken(false), 2000);
+        toast.success(
+          t("settings.webServer.tokenCopied", {
+            defaultValue: "Token copied to clipboard",
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to copy token:", error);
+      }
+    }
+  };
+
   const handleOpenInBrowser = async () => {
     if (serverUrl) {
       try {
         const browserUrl = serverUrl.replace("0.0.0.0", "localhost");
         if (isTauri()) {
-          // Use Function constructor to bypass Vite's static analysis
-          // This allows the import to be truly dynamic and only resolved at runtime
           const openModule = await new Function(
             'return import("@tauri-apps/plugin-opener")'
           )();
@@ -162,6 +217,7 @@ export function WebServerSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Status */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">
@@ -172,7 +228,7 @@ export function WebServerSettings() {
                 ? t("settings.webServer.running", {
                     defaultValue: "Web server is running",
                   })
-                : t("settings.webServer.stopped", {
+                : t("settings.webServer.notRunning", {
                     defaultValue: "Web server is stopped",
                   })}
             </p>
@@ -194,6 +250,47 @@ export function WebServerSettings() {
           </Badge>
         </div>
 
+        {/* Configuration — only editable when stopped */}
+        {!isRunning && (
+          <div className="space-y-3 p-3 border rounded-lg">
+            <div className="space-y-2">
+              <Label htmlFor="web-port">
+                {t("settings.webServer.port", { defaultValue: "Port" })}
+              </Label>
+              <Input
+                id="web-port"
+                type="number"
+                min={1024}
+                max={65535}
+                value={port}
+                onChange={(e) => setPort(Number(e.target.value))}
+                className="w-32"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="bind-all">
+                  {t("settings.webServer.bindAllLabel", {
+                    defaultValue: "Allow remote access",
+                  })}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.webServer.bindAllDescription", {
+                    defaultValue:
+                      "Bind to 0.0.0.0 to allow access from other devices on the network",
+                  })}
+                </p>
+              </div>
+              <Switch
+                id="bind-all"
+                checked={bindAll}
+                onCheckedChange={setBindAll}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Running state: URL + actions */}
         {isRunning && serverUrl && (
           <div className="space-y-2">
             <p className="text-sm font-medium">
@@ -240,6 +337,54 @@ export function WebServerSettings() {
           </div>
         )}
 
+        {/* Access Token */}
+        {isRunning && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">
+                {t("settings.webServer.accessToken", {
+                  defaultValue: "Access Token",
+                })}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateToken}
+              >
+                <Key className="w-3 h-3 mr-1" />
+                {t("settings.webServer.generateToken", {
+                  defaultValue: "Generate",
+                })}
+              </Button>
+            </div>
+            {token && (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 text-xs bg-muted rounded-md font-mono break-all select-all">
+                  {token}
+                </code>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyToken}
+                >
+                  {copiedToken ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {t("settings.webServer.tokenInfo", {
+                defaultValue:
+                  "Use this token to authenticate API requests to the web server. Tokens expire after 24 hours.",
+              })}
+            </p>
+          </div>
+        )}
+
+        {/* Start/Stop button */}
         <div className="flex items-center gap-2">
           {isRunning ? (
             <Button
@@ -275,7 +420,7 @@ export function WebServerSettings() {
           <p className="text-xs text-muted-foreground">
             {t("settings.webServer.info", {
               defaultValue:
-                "The web interface allows you to access CC Switch from any browser on your network. Use environment variables CC_SWITCH_WEB_PORT and CC_SWITCH_WEB_BIND_ALL to configure the server at startup.",
+                "The web interface allows you to access CC Switch from any browser. CLI: cc-switch --enable-web --web-port 3001 --bind-all",
             })}
           </p>
         </div>
