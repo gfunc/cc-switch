@@ -2,7 +2,7 @@ use axum::{
     routing::{get, post, put, delete},
     Router,
     Json,
-    extract::{State, Path, Query},
+    extract::{State, Path, Query, Multipart},
 };
 use std::sync::Arc;
 use crate::{
@@ -33,6 +33,155 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/current", get(get_current_provider))
         .route("/sort", post(update_sort_order))
         .route("/import-default", post(import_default_config))
+        .route("/import-upload", post(import_from_upload))
+}
+
+async fn import_from_upload(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+    mut multipart: Multipart,
+) -> Json<ApiResponse<bool>> {
+    let app = params.get("app").cloned().unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
+    
+    // Try to get the uploaded file
+    let mut file_content: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
+    
+    while let Ok(Some(mut field)) = multipart.next_field().await {
+        if field.name() == Some("config") {
+            file_name = field.file_name().map(|s| s.to_string());
+            if let Ok(data) = field.bytes().await {
+                file_content = Some(data.to_vec());
+            }
+            break;
+        }
+    }
+    
+    let (content, name) = match (file_content, file_name) {
+        (Some(c), Some(n)) => (c, n),
+        _ => {
+            return Json(ApiResponse::error("No config file uploaded".to_string()));
+        }
+    };
+    
+    // Parse the config based on app type
+    let settings_config: serde_json::Value = match app.as_str() {
+        "claude" => {
+            match serde_json::from_slice::<serde_json::Value>(&content) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Json(ApiResponse::error(format!(
+                        "Failed to parse Claude settings.json: {}", e
+                    )));
+                }
+            }
+        }
+        "codex" => {
+            // Codex uses auth.json format
+            match serde_json::from_slice::<serde_json::Value>(&content) {
+                Ok(auth) => {
+                    serde_json::json!({ "auth": auth, "config": "" })
+                }
+                Err(e) => {
+                    return Json(ApiResponse::error(format!(
+                        "Failed to parse Codex auth.json: {}", e
+                    )));
+                }
+            }
+        }
+        "gemini" => {
+            // Try to parse as JSON first (settings.json)
+            if let Ok(settings) = serde_json::from_slice::<serde_json::Value>(&content) {
+                serde_json::json!({ "env": {}, "config": settings })
+            } else {
+                // Try to parse as .env file
+                let content_str = String::from_utf8_lossy(&content);
+                let mut env_map = serde_json::Map::new();
+                for line in content_str.lines() {
+                    let line = line.trim();
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    if let Some((key, value)) = line.split_once('=') {
+                        env_map.insert(
+                            key.trim().to_string(),
+                            serde_json::Value::String(value.trim().to_string())
+                        );
+                    }
+                }
+                serde_json::json!({ "env": env_map, "config": {} })
+            }
+        }
+        _ => {
+            return Json(ApiResponse::error(format!(
+                "Unsupported app type: {}", app
+            )));
+        }
+    };
+    
+    // Create provider from uploaded config
+    let result: Result<bool, String> = state.with_db(|db: &Connection| {
+        // Check if providers already exist
+        let mut stmt = db.prepare(
+            "SELECT COUNT(*) FROM providers WHERE app_type = ?1"
+        ).map_err(|e| e.to_string())?;
+        
+        let count: i64 = stmt.query_row([&app], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        
+        if count > 0 {
+            return Ok(false); // Providers already exist, skip import
+        }
+        
+        let provider_id = format!("imported_{}", chrono::Utc::now().timestamp());
+        let provider_name = format!("Imported {} Config", app);
+        
+        db.execute(
+            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            [
+                &provider_id,
+                &provider_name,
+                &serde_json::to_string(&settings_config).unwrap_or_default(),
+                "",
+                "custom",
+                &chrono::Utc::now().timestamp().to_string(),
+                "0",
+                &format!("Imported from {}", name),
+                "0",
+                "{}",
+                "",
+                "",
+                "0",
+                &app,
+            ]
+        ).map_err(|e| e.to_string())?;
+        
+        // Set as current provider
+        db.execute(
+            "UPDATE providers SET is_current = 1 WHERE id = ?1 AND app_type = ?2",
+            [&provider_id, &app]
+        ).map_err(|e| e.to_string())?;
+        
+        Ok(true)
+    });
+    
+    match result {
+        Ok(true) => {
+            crate::handlers::ws::broadcast_event(
+                &ws_state,
+                "provider.imported",
+                json!({ "app": app })
+            );
+            Json(ApiResponse::success(true))
+        }
+        Ok(false) => {
+            Json(ApiResponse::error(
+                "Providers already exist for this app. Delete existing providers first to import.".to_string()
+            ))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Failed to import provider: {}", e))),
+    }
 }
 
 async fn import_default_config(
