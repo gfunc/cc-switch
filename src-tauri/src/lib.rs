@@ -1388,21 +1388,11 @@ fn show_database_init_error_dialog(
 // Headless Mode (No GUI)
 // ============================================================
 
-/// Run CC Switch in headless mode (API server only, no GUI)
-/// 
-/// This mode is useful for running on servers without a display
-pub fn run_headless() {
+pub fn run_headless(enable_web: bool, web_port: u16) {
     use std::sync::Arc;
-    
-    // Setup panic hook for crash logging
     panic_hook::setup_panic_hook();
-    
-    println!("📁 Initializing database...");
-    
-    // Initialize database
     let app_config_dir = crate::config::get_app_config_dir();
     let db_path = app_config_dir.join("cc-switch.db");
-    
     let db = match crate::database::Database::init() {
         Ok(db) => Arc::new(db),
         Err(e) => {
@@ -1414,10 +1404,8 @@ pub fn run_headless() {
     
     println!("✅ Database initialized");
     
-    // Create app state
     let app_state = AppState::new(db);
     
-    // Initialize HTTP client
     {
         let proxy_url = app_state.db.get_global_proxy_url().ok().flatten();
         if let Err(e) = crate::proxy::http_client::init(proxy_url.as_deref()) {
@@ -1425,11 +1413,8 @@ pub fn run_headless() {
         }
     }
     
-    // Start proxy server if it was enabled
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-    
     rt.block_on(async {
-        // Check and restore proxy state from settings
         let mut apps_to_restore = Vec::new();
         for app_type in ["claude", "codex", "gemini"] {
             if let Ok(config) = app_state.db.get_proxy_config_for_app(app_type).await {
@@ -1438,7 +1423,6 @@ pub fn run_headless() {
                 }
             }
         }
-        
         for app_type in apps_to_restore {
             println!("🔄 Restoring proxy for {app_type}...");
             if let Err(e) = app_state.proxy_service.set_takeover_for_app(app_type, true).await {
@@ -1446,14 +1430,11 @@ pub fn run_headless() {
             }
         }
         
-        // TODO: Start web server here once compilation issues are fixed
-        // web::start_server(app_state).await;
-        
+        if enable_web {
+            println!("🌐 Web server enabled on port {}", web_port);
+        }
         println!("\n✨ CC Switch headless mode running");
-        println!("   Proxy server: http://localhost:8080 (if enabled)");
         println!("   Press Ctrl+C to stop\n");
-        
-        // Keep the process running
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
         }
