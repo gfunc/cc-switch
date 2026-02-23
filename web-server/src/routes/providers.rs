@@ -32,6 +32,22 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/{id}/endpoints/{url}", delete(remove_custom_endpoint))
         .route("/current", get(get_current_provider))
         .route("/sort", post(update_sort_order))
+        .route("/import-default", post(import_default_config))
+}
+
+async fn import_default_config(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<bool>> {
+    let app = params.get("app").cloned().unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
+    
+    // In web mode, there's no local filesystem config to import from
+    // This feature requires the desktop app with access to local config files
+    Json(ApiResponse::error(format!(
+        "Import from live config is not available in web mode. \
+        Please use the desktop app to import your {} configuration, \
+        or manually add providers using the 'Add Provider' button.",
+        app
+    )))
 }
 
 fn row_to_provider(row: &rusqlite::Row) -> SqliteResult<Provider> {
