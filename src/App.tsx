@@ -71,6 +71,8 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getAuthToken } from "@/lib/api/web-client";
 import { LoginPage } from "@/components/auth/LoginPage";
+import { TerminalModal } from "@/components/terminal";
+import { isTauri } from "@/lib/environment";
 
 type View =
   | "providers"
@@ -139,16 +141,16 @@ const getInitialView = (): View => {
   return "providers";
 };
 
-// Detect web mode (running in browser instead of Tauri)
-const isWebMode = import.meta.env.VITE_CC_SWITCH_MODE === "web";
+// Web mode is detected at runtime based on Tauri availability
+// When running in browser (not Tauri), we use token-based auth
 
 function App() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
-  // Web mode auth state
+  // Web mode auth state - token auth for web, auto-authenticated for Tauri
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (!isWebMode) return true; // Always authenticated in Tauri mode
+    if (isTauri()) return true; // Always authenticated in Tauri mode
     return !!getAuthToken();
   });
 
@@ -204,6 +206,7 @@ function App() {
 
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
+  const [terminalProvider, setTerminalProvider] = useState<Provider | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     provider: Provider;
     action: "remove" | "delete";
@@ -337,7 +340,7 @@ function App() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (isWebMode) return;
+    if (!isTauri()) return;
     let unsubscribe: (() => void) | undefined;
     let active = true;
     const setupListener = async () => {
@@ -405,7 +408,7 @@ function App() {
 
   useEffect(() => {
     const checkMigration = async () => {
-      if (isWebMode) return;
+      if (!isTauri()) return;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const migrated = await invoke<boolean>('get_migration_result');
@@ -424,7 +427,7 @@ function App() {
 
   useEffect(() => {
     const checkSkillsMigration = async () => {
-      if (isWebMode) return;
+      if (!isTauri()) return;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const result = await invoke<{ count: number; error?: string } | null>(
@@ -639,21 +642,27 @@ function App() {
   };
 
   const handleOpenTerminal = async (provider: Provider) => {
-    try {
-      await providersApi.openTerminal(provider.id, activeApp);
-      toast.success(
-        t("provider.terminalOpened", {
-          defaultValue: "终端已打开",
-        }),
-      );
-    } catch (error) {
-      console.error("[App] Failed to open terminal", error);
-      const errorMessage = extractErrorMessage(error);
-      toast.error(
-        t("provider.terminalOpenFailed", {
-          defaultValue: "打开终端失败",
-        }) + (errorMessage ? `: ${errorMessage}` : ""),
-      );
+    if (!isTauri()) {
+      // Web mode: show terminal modal
+      setTerminalProvider(provider);
+    } else {
+      // Desktop mode: open native terminal
+      try {
+        await providersApi.openTerminal(provider.id, activeApp);
+        toast.success(
+          t("provider.terminalOpened", {
+            defaultValue: "终端已打开",
+          }),
+        );
+      } catch (error) {
+        console.error("[App] Failed to open terminal", error);
+        const errorMessage = extractErrorMessage(error);
+        toast.error(
+          t("provider.terminalOpenFailed", {
+            defaultValue: "打开终端失败",
+          }) + (errorMessage ? `: ${errorMessage}` : ""),
+        );
+      }
     }
   };
 
@@ -825,7 +834,7 @@ function App() {
   };
 
   // Web mode: Show login page if not authenticated
-  if (isWebMode && !isAuthenticated) {
+  if (!isTauri() && !isAuthenticated) {
     return (
       <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
         <LoginPage onLogin={handleLogin} />
@@ -1246,6 +1255,14 @@ function App() {
           }}
         />
       )}
+
+
+      <TerminalModal
+        provider={terminalProvider}
+        appId={activeApp}
+        isOpen={Boolean(terminalProvider)}
+        onClose={() => setTerminalProvider(null)}
+      />
 
       <ConfirmDialog
         isOpen={Boolean(confirmAction)}

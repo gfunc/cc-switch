@@ -8,8 +8,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/theme-provider";
 import { queryClient } from "@/lib/query";
 import { Toaster } from "@/components/ui/sonner";
-
-const isWebMode = import.meta.env.VITE_CC_SWITCH_MODE === "web";
+import { isTauri } from "@/lib/environment";
 
 try {
   const ua = navigator.userAgent || "";
@@ -31,7 +30,7 @@ async function handleConfigLoadError(
   const path = payload?.path ?? "~/.cc-switch/config.json";
   const detail = payload?.error ?? "Unknown error";
 
-  if (isWebMode) {
+  if (!isTauri()) {
     alert(
       i18n.t("errors.configLoadFailedMessage", {
         path,
@@ -64,7 +63,7 @@ async function handleConfigLoadError(
   await exit(1);
 }
 
-if (!isWebMode) {
+if (isTauri()) {
   try {
     const { listen } = await import("@tauri-apps/api/event");
     void listen("configLoadError", async (evt) => {
@@ -76,7 +75,7 @@ if (!isWebMode) {
 }
 
 async function bootstrap() {
-  if (!isWebMode) {
+  if (isTauri()) {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const initError = (await invoke(

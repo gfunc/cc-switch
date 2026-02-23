@@ -1,6 +1,6 @@
-import { get, post, put, del } from "../web-client";
-import type { Prompt } from "@/types";
-import type { AppId } from "./types";
+import { get, post, del } from "../web-client";
+import type { Prompt } from "../prompts";
+import type { AppId } from "../types";
 
 export const promptsApi = {
   async getPrompts(appId: AppId): Promise<Prompt[]> {

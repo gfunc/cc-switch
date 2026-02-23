@@ -51,6 +51,7 @@ import { FailoverQueueManager } from "@/components/proxy/FailoverQueueManager";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
 import { RectifierConfigPanel } from "@/components/settings/RectifierConfigPanel";
 import { LogConfigPanel } from "@/components/settings/LogConfigPanel";
+import { WebServerSettings } from "@/components/settings/WebServerSettings";
 import { useSettings } from "@/hooks/useSettings";
 import { useImportExport } from "@/hooks/useImportExport";
 import { useTranslation } from "react-i18next";
@@ -641,6 +642,10 @@ export function SettingsPage({
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
+
+                      {/* Web Server Settings - Standalone Card */}
+                      <WebServerSettings />
+
                   </motion.div>
                 ) : null}
               </TabsContent>

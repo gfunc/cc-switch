@@ -123,3 +123,94 @@ export function connectWebSocket(
     ws.close();
   };
 }
+
+
+
+export function connectTerminalWebSocket(
+  providerId: string,
+  app: string,
+  onData: (data: Uint8Array) => void,
+  onReady: () => void,
+  onError: (error: string) => void,
+  onClose: () => void,
+): {
+  send: (data: Uint8Array) => void;
+  resize: (cols: number, rows: number) => void;
+  close: () => void;
+} {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const token = getAuthToken();
+  const wsUrl = `${protocol}//${window.location.host}/ws/terminal?provider=${encodeURIComponent(providerId)}&app=${encodeURIComponent(app)}&token=${encodeURIComponent(token || '')}`;
+  const ws = new WebSocket(wsUrl);
+
+  ws.binaryType = 'arraybuffer';
+
+  let isReady = false;
+
+  ws.onopen = () => {
+    console.log('Terminal WebSocket connected');
+    // Send auth token as first message if needed
+    if (authToken) {
+      // Note: auth is handled via headers in query params for WebSocket upgrade
+    }
+  };
+
+  ws.onmessage = (event) => {
+    if (typeof event.data === 'string') {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.status === 'ready') {
+          isReady = true;
+          onReady();
+        } else if (data.error) {
+          onError(data.error);
+        }
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', e);
+      }
+    } else if (event.data instanceof ArrayBuffer) {
+      const bytes = new Uint8Array(event.data);
+      if (bytes.length > 0 && bytes[0] === 0x00) {
+        // Binary protocol: 0x00 prefix for stdout/stderr data
+        onData(bytes.slice(1));
+      }
+    }
+  };
+
+  ws.onclose = () => {
+    console.log('Terminal WebSocket disconnected');
+    onClose();
+  };
+
+  ws.onerror = (error) => {
+    console.error('Terminal WebSocket error:', error);
+    onError('Connection error');
+  };
+
+  return {
+    send: (data: Uint8Array) => {
+      if (ws.readyState === WebSocket.OPEN && isReady) {
+        // Binary protocol: 0x00 prefix for stdin data
+        const message = new Uint8Array(data.length + 1);
+        message[0] = 0x00;
+        message.set(data, 1);
+        ws.send(message);
+      }
+    },
+    resize: (cols: number, rows: number) => {
+      if (ws.readyState === WebSocket.OPEN && isReady) {
+        // Binary protocol: 0x01 prefix for resize event
+        const resizeData = JSON.stringify({ cols, rows });
+        const encoder = new TextEncoder();
+        const jsonBytes = encoder.encode(resizeData);
+        const message = new Uint8Array(jsonBytes.length + 1);
+        message[0] = 0x01;
+        message.set(jsonBytes, 1);
+        ws.send(message);
+      }
+    },
+    close: () => {
+      ws.close();
+    },
+  };
+}

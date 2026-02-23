@@ -1,4 +1,4 @@
-const isWebMode = import.meta.env.VITE_CC_SWITCH_MODE === "web";
+import { isTauri } from "@/lib/environment";
 
 import {
   providersApi as tauriProvidersApi,
@@ -27,12 +27,14 @@ export type { AppId } from "./types";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
 
-export const providersApi = isWebMode ? webProvidersApi : tauriProvidersApi;
-export const universalProvidersApi = isWebMode
-  ? webUniversalProvidersApi
-  : tauriUniversalProvidersApi;
-export const settingsApi = isWebMode ? webSettingsApi : tauriSettingsApi;
-export const mcpApi = isWebMode ? webMcpApi : tauriMcpApi;
+// Runtime API selection based on environment
+// Desktop app uses Tauri APIs, Web uses HTTP APIs
+export const providersApi = isTauri() ? tauriProvidersApi : webProvidersApi;
+export const universalProvidersApi = isTauri()
+  ? tauriUniversalProvidersApi
+  : webUniversalProvidersApi;
+export const settingsApi = isTauri() ? tauriSettingsApi : webSettingsApi;
+export const mcpApi = isTauri() ? tauriMcpApi : webMcpApi;
 export { promptsApi };
 export { skillsApi };
 export { usageApi };

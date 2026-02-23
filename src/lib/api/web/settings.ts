@@ -58,7 +58,7 @@ export const settingsApi = {
     return response.path;
   },
 
-  async openConfigFolder(appId: AppId): Promise<void> {
+  async openConfigFolder(_appId: AppId): Promise<void> {
     console.warn("open_config_folder not available in web mode");
   },
 

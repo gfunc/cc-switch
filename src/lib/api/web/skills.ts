@@ -69,7 +69,7 @@ export const skillsApi = {
     skill: DiscoverableSkill,
     _currentApp: AppId,
   ): Promise<InstalledSkill> {
-    return post(`/skills/${skill.key}/install`, { skill, currentApp });
+    return post(`/skills/${skill.key}/install`, { skill, currentApp: _currentApp });
   },
 
   async uninstallUnified(id: string): Promise<boolean> {

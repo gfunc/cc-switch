@@ -47,7 +47,7 @@ pub async fn auth_middleware(
     next.run(request).await
 }
 
-fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
+pub fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "default-secret-key".to_string());
     let validation = Validation::new(Algorithm::HS256);
     decode::<Claims>(

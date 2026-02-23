@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Lock, User, Loader2 } from "lucide-react";
+import { Key, Loader2, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,17 +21,16 @@ interface LoginPageProps {
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const { t } = useTranslation();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password) {
+    if (!token.trim()) {
       toast.error(
-        t("login.fieldsRequired", {
-          defaultValue: "Please enter both username and password",
+        t("login.tokenRequired", {
+          defaultValue: "Please enter your admin token",
         }),
       );
       return;
@@ -41,23 +40,23 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/login`,
+        `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/verify`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ token: token.trim() }),
         },
       );
 
       const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.error || "Login failed");
+      if (!data.success || !data.data?.valid) {
+        throw new Error(data.error || "Invalid token");
       }
 
-      setAuthToken(data.data.token);
+      setAuthToken(token.trim());
       toast.success(t("login.success", { defaultValue: "Login successful" }));
       onLogin();
     } catch (error) {
@@ -95,38 +94,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username">
-                  {t("login.username", { defaultValue: "Username" })}
+                <Label htmlFor="token">
+                  {t("login.token", { defaultValue: "Admin Token" })}
                 </Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="username"
-                    type="text"
-                    placeholder={t("login.usernamePlaceholder", {
-                      defaultValue: "Enter username",
-                    })}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="pl-10"
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">
-                  {t("login.password", { defaultValue: "Password" })}
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="password"
+                    id="token"
                     type="password"
-                    placeholder={t("login.passwordPlaceholder", {
-                      defaultValue: "Enter password",
+                    placeholder={t("login.tokenPlaceholder", {
+                      defaultValue: "Paste your admin token here",
                     })}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
                     className="pl-10"
                     disabled={isLoading}
                   />
@@ -136,19 +116,36 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t("login.loggingIn", { defaultValue: "Logging in..." })}
+                    {t("login.loggingIn", { defaultValue: "Verifying..." })}
                   </>
                 ) : (
                   t("login.submit", { defaultValue: "Sign In" })
                 )}
               </Button>
             </form>
+
+            <div className="mt-6 p-4 bg-muted rounded-lg">
+              <div className="flex items-start gap-3">
+                <Terminal className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">
+                    {t("login.cliInstructions", {
+                      defaultValue: "Generate a token using CLI:",
+                    })}
+                  </p>
+                  <code className="block bg-background px-2 py-1 rounded text-xs">
+                    cc-switch-web generate-token
+                  </code>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          {t("login.defaultCredentials", {
-            defaultValue: "Default: admin / admin",
+          {t("login.tokenHelp", {
+            defaultValue:
+              "Run the command on your server to generate an admin token",
           })}
         </p>
       </motion.div>
