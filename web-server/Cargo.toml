@@ -7,7 +7,7 @@ license = "MIT"
 
 [dependencies]
 # Axum web framework
-axum = { version = "0.8", features = ["ws", "macros"] }
+axum = { version = "0.8", features = ["ws", "macros", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
@@ -39,6 +39,9 @@ indexmap = { version = "2.7", features = ["serde"] }
 
 # Async utilities
 futures = "0.3"
+
+# File upload
+multer = "3"
 
 # Environment
 dotenvy = "0.15"
