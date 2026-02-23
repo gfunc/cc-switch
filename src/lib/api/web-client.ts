@@ -37,7 +37,10 @@ async function fetchWithAuth(
 
   if (response.status === 401) {
     clearAuthToken();
-    window.location.href = "/login";
+    // Only redirect if not already on login page to prevent redirect loops
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = "/login";
+    }
     throw new Error("Unauthorized");
   }
 
