@@ -80,7 +80,7 @@ async fn start_proxy(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.started",
             json!({}),
@@ -102,7 +102,7 @@ async fn stop_proxy(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.stopped",
             json!({}),
@@ -124,7 +124,7 @@ async fn restart_proxy(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.restarted",
             json!({}),
@@ -171,7 +171,7 @@ async fn set_takeover(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.takeover_changed",
             json!({ "app": app, "enabled": enabled }),
@@ -207,7 +207,7 @@ async fn update_proxy_config(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.config_updated",
             json!({}),
@@ -243,7 +243,7 @@ async fn update_global_config(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.global_config_updated",
             json!({}),
@@ -293,7 +293,7 @@ async fn update_app_config(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "proxy.app_config_updated",
             json!({ "app": app }),

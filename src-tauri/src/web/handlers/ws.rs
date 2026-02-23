@@ -18,7 +18,7 @@ impl WsState {
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((_, ws_state)): State<(Arc<crate::models::app_state::AppState>, Arc<WsState>)>,
+    State((_, ws_state)): State<(Arc<crate::web::models::app_state::AppState>, Arc<WsState>)>,
 ) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, ws_state))
 }

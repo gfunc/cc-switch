@@ -89,7 +89,7 @@ async fn update_settings(
 
             match res {
                 Ok(_) => {
-                    crate::handlers::ws::broadcast_event(
+                    crate::web::handlers::ws::broadcast_event(
                         &ws_state,
                         "settings.changed",
                         json!({}),

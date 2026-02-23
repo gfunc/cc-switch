@@ -27,8 +27,9 @@ mod settings;
 mod store;
 mod tray;
 mod usage_script;
-mod web;
-mod web_server;
+// TODO: Fix web server integration - temporarily disabled due to compilation issues
+// mod web;
+// mod web_server;
 
 pub use app_config::{AppType, McpApps, McpServer, MultiAppConfig};
 pub use codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
@@ -773,13 +774,14 @@ pub fn run() {
                 // 检查 settings 表中的代理状态，自动恢复代理服务
                 restore_proxy_state_on_startup(&state).await;
             });
+            // TODO: Web server disabled - fix integration
             // Auto-start web server if CC_SWITCH_ENABLE_WEB is set
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = web_server::auto_start_web_server(app_handle).await {
-                    log::error!("Failed to auto-start web server: {}", e);
-                }
-            });
+            // let app_handle = app.handle().clone();
+            // tauri::async_runtime::spawn(async move {
+            //     if let Err(e) = web_server::auto_start_web_server(app_handle).await {
+            //         log::error!("Failed to auto-start web server: {}", e);
+            //     }
+            // });
 
             // Linux: 禁用 WebKitGTK 硬件加速，防止 EGL 初始化失败导致白屏
             #[cfg(target_os = "linux")]
@@ -1042,12 +1044,12 @@ pub fn run() {
             commands::read_daily_memory_file,
             commands::write_daily_memory_file,
             commands::delete_daily_memory_file,
-            // Web server commands
-            web_server::start_web_server,
-            web_server::stop_web_server,
-            web_server::is_web_server_running,
-            web_server::get_web_server_url,
-            web_server::is_web_server_bind_all,
+            // TODO: Web server commands disabled - fix integration
+            // web_server::start_web_server,
+            // web_server::stop_web_server,
+            // web_server::is_web_server_running,
+            // web_server::get_web_server_url,
+            // web_server::is_web_server_bind_all,
         ]);
 
     let app = builder

@@ -159,7 +159,7 @@ async fn create_mcp_server(
 
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "mcp.created",
                 json!({ "id": id }),
@@ -202,7 +202,7 @@ async fn update_mcp_server(
 
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "mcp.updated",
                 json!({ "id": id }),
@@ -225,7 +225,7 @@ async fn delete_mcp_server(
 
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "mcp.deleted",
                 json!({ "id": id }),
@@ -267,7 +267,7 @@ async fn toggle_mcp_server(
 
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "mcp.toggled",
                 json!({ "id": id, "app": app, "enabled": enabled }),
@@ -340,7 +340,7 @@ async fn import_mcp(
         }
     }
 
-    crate::handlers::ws::broadcast_event(
+    crate::web::handlers::ws::broadcast_event(
         &ws_state,
         "mcp.imported",
         json!({ "count": imported }),

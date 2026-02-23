@@ -168,7 +168,7 @@ async fn import_from_upload(
     
     match result {
         Ok(true) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.imported",
                 json!({ "app": app })
@@ -371,7 +371,7 @@ async fn import_default_config(
     
     match result {
         Ok(true) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.imported",
                 json!({ "app": app })
@@ -492,7 +492,7 @@ async fn create_provider(
     
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.created",
                 json!({ "id": provider.id })
@@ -539,7 +539,7 @@ async fn update_provider(
     
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.updated",
                 json!({ "id": id })
@@ -562,7 +562,7 @@ async fn delete_provider(
     
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.deleted",
                 json!({ "id": id })
@@ -609,7 +609,7 @@ async fn switch_provider(
     
     match result {
         Ok(_) => {
-            crate::handlers::ws::broadcast_event(
+            crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.switched",
                 json!({ "id": id, "app": app })
@@ -643,8 +643,8 @@ async fn get_current_provider(
 async fn get_custom_endpoints(
     State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
     Path(id): Path<String>,
-) -> Json<ApiResponse<Vec<crate::models::CustomEndpoint>>> {
-    let result: Vec<crate::models::CustomEndpoint> = state.with_db(|db: &Connection| {
+) -> Json<ApiResponse<Vec<crate::web::models::CustomEndpoint>>> {
+    let result: Vec<crate::web::models::CustomEndpoint> = state.with_db(|db: &Connection| {
         let mut stmt = match db.prepare(
             "SELECT meta FROM providers WHERE id = ?1"
         ) {
@@ -658,7 +658,7 @@ async fn get_custom_endpoints(
             Err(_) => return Vec::new(),
         };
         
-        let meta: Option<crate::models::ProviderMeta> = serde_json::from_str(&meta_str).ok();
+        let meta: Option<crate::web::models::ProviderMeta> = serde_json::from_str(&meta_str).ok();
         
         meta.and_then(|m| m.custom_endpoints).map(|endpoints| {
             endpoints.into_values().collect::<Vec<_>>()
@@ -671,7 +671,7 @@ async fn get_custom_endpoints(
 async fn add_custom_endpoint(
     State((_state, _)): State<(Arc<AppState>, Arc<WsState>)>,
     Path(_id): Path<String>,
-    Json(_endpoint): Json<crate::models::CustomEndpoint>,
+    Json(_endpoint): Json<crate::web::models::CustomEndpoint>,
 ) -> Json<ApiResponse<bool>> {
     Json(ApiResponse::success(true))
 }

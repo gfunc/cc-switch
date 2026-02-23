@@ -74,6 +74,7 @@ pub(crate) use lock_conn;
 /// rusqlite::Connection 本身不是 Sync 的，因此需要这层包装。
 pub struct Database {
     pub(crate) conn: Mutex<Connection>,
+    db_path: String,
 }
 
 fn register_db_change_hook(conn: &Connection) {
@@ -106,8 +107,10 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         register_db_change_hook(&conn);
 
+        let db_path_str = db_path.to_string_lossy().to_string();
         let db = Self {
             conn: Mutex::new(conn),
+            db_path: db_path_str,
         };
         db.create_tables()?;
         db.apply_schema_migrations()?;
@@ -127,11 +130,17 @@ impl Database {
 
         let db = Self {
             conn: Mutex::new(conn),
+            db_path: ":memory:".to_string(),
         };
         db.create_tables()?;
         db.ensure_model_pricing_seeded()?;
 
         Ok(db)
+    }
+
+    /// 获取数据库路径
+    pub fn get_db_path(&self) -> String {
+        self.db_path.clone()
     }
 
     /// 检查 MCP 服务器表是否为空

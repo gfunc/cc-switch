@@ -154,7 +154,7 @@ async fn add_skill_repo(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "skill.repo_added",
             json!({}),
@@ -197,7 +197,7 @@ async fn remove_skill_repo(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "skill.repo_removed",
             json!({ "owner": owner, "name": name }),
@@ -233,7 +233,7 @@ async fn install_skill(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "skill.installed",
             json!({ "id": id }),
@@ -257,7 +257,7 @@ async fn uninstall_skill(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "skill.uninstalled",
             json!({ "id": id }),
@@ -304,7 +304,7 @@ async fn toggle_skill_app(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "skill.toggled",
             json!({ "id": id, "app": app, "enabled": enabled }),
@@ -361,7 +361,7 @@ async fn import_skills(
     }
     
     if !imported.is_empty() {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "skill.imported",
             json!({ "count": imported.len() }),

@@ -11,15 +11,15 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tracing::{error, info, warn};
 
-use crate::handlers::ws::WsState;
-use crate::middleware::auth::validate_token;
-use crate::models::app_state::AppState;
+use crate::web::handlers::ws::WsState;
+use crate::web::middleware::auth::validate_token;
+use crate::web::models::app_state::AppState;
 
 /// WebSocket handler for terminal connections
 pub async fn terminal_ws_handler(
     ws: WebSocketUpgrade,
     Query(params): Query<HashMap<String, String>>,
-    State((state, _)): State<(Arc<crate::models::app_state::AppState>, Arc<WsState>)>,
+    State((state, _)): State<(Arc<crate::web::models::app_state::AppState>, Arc<WsState>)>,
     headers: axum::http::HeaderMap,
 ) -> Response {
     // Validate JWT token from Authorization header or query param

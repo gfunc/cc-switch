@@ -125,7 +125,7 @@ async fn resume_session(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "session.resumed",
             json!({ "id": id, "command": command, "cwd": cwd }),
@@ -154,7 +154,7 @@ async fn delete_session(
     }).unwrap_or(false);
     
     if result {
-        crate::handlers::ws::broadcast_event(
+        crate::web::handlers::ws::broadcast_event(
             &ws_state,
             "session.deleted",
             json!({ "id": id }),
