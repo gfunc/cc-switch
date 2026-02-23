@@ -359,6 +359,88 @@ flatpak run com.ccswitch.desktop
 - Frontend: 4-stage refactoring (test infra → hooks → components → cleanup)
 - Testing: 100% hooks coverage + integration tests (vitest + MSW)
 
+## Web UI (Remote Server Mode)
+
+In addition to the desktop application, CC Switch also provides a web-based UI for remote server management. This allows you to configure and manage AI providers through a browser interface when running the backend on a remote server (cloud/datacenter).
+
+### Architecture
+
+```
+User's Browser          Remote Server (Cloud/Datacenter)
+├─ Web UI (React)  ───> ├─ Rust Axum Backend
+│                       │  ├─ SQLite Database
+│                       │  ├─ JWT Authentication
+│                       │  └─ WebSocket Events
+│                       ├─ ~/.claude/settings.json  (config files)
+└─ ~/.codex/auth.json   ├─ ~/.gemini/.env            (on remote server!)
+                        └─ ~/.gemini/settings.json
+```
+
+**Key Point**: The web UI accesses configuration files stored on the **remote server**, not the user's local machine. This is different from the desktop app which reads local files.
+
+### Features
+
+- **JWT Authentication**: Secure login with token-based auth
+- **Real-time Updates**: WebSocket for live provider/MCP/prompt updates
+- **File-based Import**: "Import Current Config" reads from remote server filesystem:
+  - Claude: `~/.claude/settings.json`
+  - Codex: `~/.codex/auth.json`
+  - Gemini: `~/.gemini/.env` + `~/.gemini/settings.json`
+- **Same Management Features**: Providers, MCP servers, Prompts, Skills, Sessions
+
+### Running the Web Server
+
+```bash
+# Build web server
+cd web-server
+cargo build --release
+
+# Run with default settings (port 3000)
+./target/release/cc-switch-web
+
+# Or with custom settings
+JWT_SECRET=your-secret PORT=3000 ./target/release/cc-switch-web
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | Random | Secret for JWT token signing |
+| `PORT` | 3000 | Server port |
+| `CC_SWITCH_DB_PATH` | `~/.cc-switch/cc-switch.db` | SQLite database path |
+
+### Frontend Build
+
+```bash
+# Build frontend for web mode
+npm run build:web
+
+# Copy to server
+cp -r dist/* web-server/dist/
+```
+
+### Accessing the Web UI
+
+Once the server is running:
+
+```
+http://your-server-ip:3000
+```
+
+Default login:
+- Username: `admin`
+- Password: `admin` (or set via `CC_SWITCH_PASSWORD` env var)
+
+### Use Cases
+
+- **Remote Server Management**: Configure AI providers on cloud servers
+- **Headless Environments**: Manage without desktop environment
+- **Team Sharing**: Centralized configuration on shared infrastructure
+- **Docker/Container**: Run backend in container, access via browser
+
+---
+
 ## Development
 
 ### Environment Requirements
