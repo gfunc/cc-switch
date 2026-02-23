@@ -1,4 +1,4 @@
-import { get, post, put, del, connectWebSocket } from "../web-client";
+import { get, post, put, del, connectWebSocket, getAuthToken } from "../web-client";
 import type {
   Provider,
   UniversalProvider,
@@ -108,6 +108,7 @@ export const providersApi = {
     return get("/providers/openclaw-live-ids");
   },
 
+<<<<<<< HEAD
   async getHermesLiveProviderIds(): Promise<string[]> {
     return get("/providers/hermes-live-ids");
   },
@@ -150,6 +151,31 @@ export const providersApi = {
 
   async ensureGrokBuildOfficialProvider(): Promise<boolean> {
     return post("/providers/ensure-grokbuild-official", {});
+  },
+
+  async importFromUpload(appId: AppId, file: File): Promise<boolean> {
+    const formData = new FormData();
+    formData.append("config", file);
+
+    const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+    const response = await fetch(`${base}/providers/import-upload?app=${appId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getAuthToken() || ""}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to import provider");
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || "Failed to import provider");
+    }
+    return result.data;
   },
 };
 
