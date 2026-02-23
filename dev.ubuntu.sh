@@ -35,9 +35,8 @@ sudo apt-get install -y \
     libgdk-pixbuf2.0-dev \
     libwebkit2gtk-4.1-dev \
     librsvg2-dev \
+    libayatana-appindicator3-dev \
     patchelf
-
-    # libappindicator3-dev \
     
 echo ""
 echo "Step 3: Installing build essentials..."
@@ -115,10 +114,12 @@ if which pkg-config | grep -q "linuxbrew"; then
     echo "Or run with:"
     echo '  PKG_CONFIG=/usr/bin/pkg-config npm run dev'
     echo ""
-    export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
-    echo -e "${GREEN}Added system pkgconfig path to current session${NC}"
+    export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH
+    echo -e "${GREEN}Added system pkgconfig paths to current session${NC}"
 else
     echo -e "${GREEN}System pkg-config is being used${NC}"
+    # Ensure system pkgconfig paths are included even with system pkg-config
+    export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:$PKG_CONFIG_PATH
 fi
 
 echo ""
@@ -126,8 +127,10 @@ echo "=== Setup Complete! ==="
 echo ""
 echo "You can now run the development server with:"
 echo ""
-echo "  npm run dev          # Full desktop app with Tauri"
-echo "  npm run dev:renderer # Web-only mode (no desktop features)"
+echo "  pnpm run dev             # Full desktop app with Tauri"
+echo "  pnpm run dev:renderer    # Web-only mode (no desktop features)"
+echo "  pnpm run build:linux     # Build Linux distribution packages (.deb, .rpm, .AppImage)"
+echo "  pnpm run headless:web    # Start headless web server mode"
 echo ""
 echo "If you encounter any issues:"
 echo "  1. Make sure to restart your terminal or run: source ~/.cargo/env"
