@@ -550,12 +550,12 @@ pnpm test:unit --coverage
 │   ├── components/           # UI components (providers/settings/mcp/ui)
 │   ├── hooks/                # Custom hooks (business logic)
 │   ├── lib/
-│   │   ├── api/              # Tauri API wrapper (type-safe)
+│   │   ├── api/              # API layer (Tauri + Web)
 │   │   └── query/            # TanStack Query config
 │   ├── i18n/locales/         # Translations (zh/en)
 │   ├── config/               # Presets (providers/mcp)
 │   └── types/                # TypeScript definitions
-├── src-tauri/                # Backend (Rust)
+├── src-tauri/                # Desktop Backend (Tauri + Rust)
 │   └── src/
 │       ├── commands/         # Tauri command layer (by domain)
 │       ├── services/         # Business logic layer
@@ -563,6 +563,12 @@ pnpm test:unit --coverage
 │       ├── provider.rs       # Provider domain models
 │       ├── mcp.rs            # MCP sync & validation
 │       └── lib.rs            # App entry & tray menu
+├── web-server/               # Web Backend (Axum + Rust)
+│   └── src/
+│       ├── routes/           # HTTP API routes
+│       ├── handlers/         # Request handlers
+│       ├── middleware/       # Auth & CORS middleware
+│       └── models/           # Data models
 ├── tests/                    # Frontend tests
 │   ├── hooks/                # Unit tests
 │   └── components/           # Integration tests
