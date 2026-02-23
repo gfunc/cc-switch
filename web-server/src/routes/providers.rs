@@ -185,18 +185,206 @@ async fn import_from_upload(
 }
 
 async fn import_default_config(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<bool>> {
     let app = params.get("app").cloned().unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
     
-    // In web mode, there's no local filesystem config to import from
-    // This feature requires the desktop app with access to local config files
-    Json(ApiResponse::error(format!(
-        "Import from live config is not available in web mode. \
-        Please use the desktop app to import your {} configuration, \
-        or manually add providers using the 'Add Provider' button.",
-        app
-    )))
+    // Read config from remote server's filesystem
+    let settings_config = match app.as_str() {
+        "claude" => {
+            let settings_path = dirs::home_dir()
+                .map(|h| h.join(".claude/settings.json"))
+                .filter(|p| p.exists());
+            
+            match settings_path {
+                Some(path) => {
+                    match tokio::fs::read_to_string(&path).await {
+                        Ok(content) => {
+                            match serde_json::from_str::<serde_json::Value>(&content) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    return Json(ApiResponse::error(format!(
+                                        "Failed to parse Claude settings.json: {}", e
+                                    )));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            return Json(ApiResponse::error(format!(
+                                "Failed to read Claude settings.json: {}", e
+                            )));
+                        }
+                    }
+                }
+                None => {
+                    return Json(ApiResponse::error(
+                        "Claude settings.json not found at ~/.claude/settings.json".to_string()
+                    ));
+                }
+            }
+        }
+        "codex" => {
+            let auth_path = dirs::home_dir()
+                .map(|h| h.join(".codex/auth.json"))
+                .filter(|p| p.exists());
+            
+            match auth_path {
+                Some(path) => {
+                    match tokio::fs::read_to_string(&path).await {
+                        Ok(content) => {
+                            match serde_json::from_str::<serde_json::Value>(&content) {
+                                Ok(auth) => serde_json::json!({ "auth": auth, "config": "" }),
+                                Err(e) => {
+                                    return Json(ApiResponse::error(format!(
+                                        "Failed to parse Codex auth.json: {}", e
+                                    )));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            return Json(ApiResponse::error(format!(
+                                "Failed to read Codex auth.json: {}", e
+                            )));
+                        }
+                    }
+                }
+                None => {
+                    return Json(ApiResponse::error(
+                        "Codex auth.json not found at ~/.codex/auth.json".to_string()
+                    ));
+                }
+            }
+        }
+        "gemini" => {
+            let home = dirs::home_dir();
+            let env_path = home.as_ref().map(|h| h.join(".gemini/.env"));
+            let settings_path = home.as_ref().map(|h| h.join(".gemini/settings.json"));
+            
+            // Read .env file
+            let env_data = if let Some(ref path) = env_path {
+                if path.exists() {
+                    tokio::fs::read_to_string(path).await.ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            
+            // Read settings.json
+            let settings_data = if let Some(ref path) = settings_path {
+                if path.exists() {
+                    tokio::fs::read_to_string(path).await.ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            
+            if env_data.is_none() && settings_data.is_none() {
+                return Json(ApiResponse::error(
+                    "Gemini config not found at ~/.gemini/.env or ~/.gemini/settings.json".to_string()
+                ));
+            }
+            
+            // Parse .env if present
+            let env_obj = if let Some(content) = env_data {
+                let mut env_map = serde_json::Map::new();
+                for line in content.lines() {
+                    let line = line.trim();
+                    if line.is_empty() || line.starts_with('#') {
+                        continue;
+                    }
+                    if let Some((key, value)) = line.split_once('=') {
+                        env_map.insert(
+                            key.trim().to_string(),
+                            serde_json::Value::String(value.trim().to_string())
+                        );
+                    }
+                }
+                serde_json::Value::Object(env_map)
+            } else {
+                serde_json::json!({})
+            };
+            
+            serde_json::json!({
+                "env": env_obj,
+                "config": settings_data.unwrap_or_else(|| serde_json::json!({}))
+            })
+        }
+        _ => {
+            return Json(ApiResponse::error(format!(
+                "Unsupported app type: {}", app
+            )));
+        }
+    };
+    
+    // Create provider from config
+    let result: Result<bool, String> = state.with_db(|db: &Connection| {
+        // Check if providers already exist
+        let mut stmt = db.prepare(
+            "SELECT COUNT(*) FROM providers WHERE app_type = ?1"
+        ).map_err(|e| e.to_string())?;
+        
+        let count: i64 = stmt.query_row([&app], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        
+        if count > 0 {
+            return Ok(false); // Providers already exist
+        }
+        
+        let provider_id = format!("default");
+        let provider_name = format!("Default {} Config", app);
+        
+        db.execute(
+            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            [
+                &provider_id,
+                &provider_name,
+                &serde_json::to_string(&settings_config).unwrap_or_default(),
+                "",
+                "custom",
+                &chrono::Utc::now().timestamp().to_string(),
+                "0",
+                &format!("Imported from remote server {} config", app),
+                "0",
+                "{}",
+                "",
+                "",
+                "0",
+                &app,
+            ]
+        ).map_err(|e| e.to_string())?;
+        
+        // Set as current provider
+        db.execute(
+            "UPDATE providers SET is_current = 1 WHERE id = ?1 AND app_type = ?2",
+            [&provider_id, &app]
+        ).map_err(|e| e.to_string())?;
+        
+        Ok(true)
+    });
+    
+    match result {
+        Ok(true) => {
+            crate::handlers::ws::broadcast_event(
+                &ws_state,
+                "provider.imported",
+                json!({ "app": app })
+            );
+            Json(ApiResponse::success(true))
+        }
+        Ok(false) => {
+            Json(ApiResponse::error(
+                "Providers already exist for this app. Delete existing providers first to import.".to_string()
+            ))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Failed to import provider: {}", e))),
+    }
 }
 
 fn row_to_provider(row: &rusqlite::Row) -> SqliteResult<Provider> {

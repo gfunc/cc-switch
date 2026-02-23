@@ -88,30 +88,6 @@ export const providersApi = {
   async getOpenClawLiveProviderIds(): Promise<string[]> {
     return get("/providers/openclaw-live-ids");
   },
-
-  async importFromUpload(appId: AppId, file: File): Promise<boolean> {
-    const formData = new FormData();
-    formData.append('config', file);
-
-    const response = await fetch(`/api/v1/providers/import-upload?app=${appId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('cc_switch_token') || ''}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to import provider');
-    }
-
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to import provider');
-    }
-    return result.data;
-  },
 };
 
 export const universalProvidersApi = {
