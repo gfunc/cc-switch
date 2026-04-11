@@ -26,3 +26,9 @@ flatpak-build/
 flatpak-repo/
 
 .playwright-cli
+.worktrees/
+.spec-workflow/
+copilot-api
+.history
+CODEBUDDY.md
+.github

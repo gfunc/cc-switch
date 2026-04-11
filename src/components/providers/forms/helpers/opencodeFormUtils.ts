@@ -1,5 +1,4 @@
 import type { OpenCodeModel, OpenCodeProviderConfig } from "@/types";
-import type { OmoGlobalConfig } from "@/types/omo";
 import type { PricingModelSourceOption } from "../ProviderAdvancedConfig";
 
 // ── Default configs ──────────────────────────────────────────────────
@@ -29,6 +28,7 @@ export const OPENCODE_DEFAULT_CONFIG = JSON.stringify(
     options: {
       baseURL: "",
       apiKey: "",
+      setCacheKey: true,
     },
     models: {},
   },
@@ -51,15 +51,6 @@ export const OPENCLAW_DEFAULT_CONFIG = JSON.stringify(
   null,
   2,
 );
-
-export const EMPTY_OMO_GLOBAL_CONFIG: OmoGlobalConfig = {
-  id: "global",
-  disabledAgents: [],
-  disabledMcps: [],
-  disabledHooks: [],
-  disabledSkills: [],
-  updatedAt: "",
-};
 
 // ── Pure functions ───────────────────────────────────────────────────
 
@@ -117,6 +108,26 @@ export function parseOpencodeConfigStrict(
         ? (parsed.models as Record<string, OpenCodeModel>)
         : {},
   };
+}
+
+export const OPENCODE_KNOWN_MODEL_KEYS = ["name", "limit", "options"] as const;
+
+export function isKnownModelKey(key: string): boolean {
+  return OPENCODE_KNOWN_MODEL_KEYS.includes(
+    key as (typeof OPENCODE_KNOWN_MODEL_KEYS)[number],
+  );
+}
+
+export function getModelExtraFields(
+  model: OpenCodeModel,
+): Record<string, string> {
+  const extra: Record<string, string> = {};
+  for (const [k, v] of Object.entries(model)) {
+    if (!isKnownModelKey(k)) {
+      extra[k] = typeof v === "string" ? v : JSON.stringify(v);
+    }
+  }
+  return extra;
 }
 
 export function toOpencodeExtraOptions(

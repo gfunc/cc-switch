@@ -1,6 +1,7 @@
 export type ProviderCategory =
   | "official" // 官方
   | "cn_official" // 开源官方（原"国产官方"）
+  | "cloud_provider" // 云服务商（AWS Bedrock 等）
   | "aggregator" // 聚合网站
   | "third_party" // 第三方供应商
   | "custom" // 自定义
@@ -48,17 +49,20 @@ export interface EndpointCandidate {
   isCustom?: boolean;
 }
 
+import type { TemplateType } from "./config/constants";
+
 // 用量查询脚本配置
 export interface UsageScript {
   enabled: boolean; // 是否启用用量查询
   language: "javascript"; // 脚本语言
   code: string; // 脚本代码（JSON 格式配置）
   timeout?: number; // 超时时间（秒，默认 10）
-  templateType?: "custom" | "general" | "newapi"; // 模板类型（用于后端判断验证规则）
+  templateType?: TemplateType; // 模板类型（用于后端判断验证规则）
   apiKey?: string; // 用量查询专用的 API Key（通用模板使用）
   baseUrl?: string; // 用量查询专用的 Base URL（通用和 NewAPI 模板使用）
   accessToken?: string; // 访问令牌（NewAPI 模板使用）
   userId?: string; // 用户ID（NewAPI 模板使用）
+  codingPlanProvider?: string; // Coding Plan 供应商标识（如 "kimi", "zhipu", "minimax"）
   autoQueryInterval?: number; // 自动查询间隔（单位：分钟，0 表示禁用）
   autoIntervalMinutes?: number; // 自动查询间隔（分钟）- 别名字段
   request?: {
@@ -121,10 +125,20 @@ export interface ProviderProxyConfig {
   proxyPassword?: string;
 }
 
+export type AuthBindingSource = "provider_config" | "managed_account";
+
+export interface AuthBinding {
+  source: AuthBindingSource;
+  authProvider?: string;
+  accountId?: string;
+}
+
 // 供应商元数据（字段名与后端一致，保持 snake_case）
 export interface ProviderMeta {
   // 自定义端点：以 URL 为键，值为端点信息
   custom_endpoints?: Record<string, CustomEndpoint>;
+  // 是否在切换/同步到 live 时应用通用配置片段
+  commonConfigEnabled?: boolean;
   // 用量查询脚本配置
   usage_script?: UsageScript;
   // 请求地址管理：测速后自动选择最佳端点
@@ -144,16 +158,36 @@ export interface ProviderMeta {
   // Claude API 格式（仅 Claude 供应商使用）
   // - "anthropic": 原生 Anthropic Messages API 格式，直接透传
   // - "openai_chat": OpenAI Chat Completions 格式，需要格式转换
-  apiFormat?: "anthropic" | "openai_chat";
+  // - "openai_responses": OpenAI Responses API 格式，需要格式转换
+  apiFormat?: "anthropic" | "openai_chat" | "openai_responses";
+  // 通用认证绑定
+  authBinding?: AuthBinding;
+  // Claude 认证字段名
+  apiKeyField?: ClaudeApiKeyField;
+  // 是否将 base_url 视为完整 API 端点（代理直接使用此 URL，不拼接路径）
+  isFullUrl?: boolean;
+  // Prompt cache key for OpenAI-compatible endpoints (improves cache hit rate)
+  promptCacheKey?: string;
+  // 供应商类型（用于识别 Copilot 等特殊供应商）
+  providerType?: string;
+  // GitHub Copilot 关联账号 ID（旧字段，保留兼容读取）
+  githubAccountId?: string;
 }
 
 // Skill 同步方式
 export type SkillSyncMethod = "auto" | "symlink" | "copy";
 
+// Skill 存储位置
+export type SkillStorageLocation = "cc_switch" | "unified";
+
 // Claude API 格式类型
 // - "anthropic": 原生 Anthropic Messages API 格式，直接透传
 // - "openai_chat": OpenAI Chat Completions 格式，需要格式转换
-export type ClaudeApiFormat = "anthropic" | "openai_chat";
+// - "openai_responses": OpenAI Responses API 格式，需要格式转换
+export type ClaudeApiFormat = "anthropic" | "openai_chat" | "openai_responses";
+
+// Claude 认证字段类型
+export type ClaudeApiKeyField = "ANTHROPIC_AUTH_TOKEN" | "ANTHROPIC_API_KEY";
 
 // 主页面显示的应用配置
 export interface VisibleApps {
@@ -164,7 +198,7 @@ export interface VisibleApps {
   openclaw: boolean;
 }
 
-// WebDAV v2 同步状态
+// WebDAV 同步状态
 export interface WebDavSyncStatus {
   lastSyncAt?: number | null;
   lastError?: string | null;
@@ -174,7 +208,7 @@ export interface WebDavSyncStatus {
   lastRemoteManifestHash?: string | null;
 }
 
-// WebDAV v2 同步配置
+// WebDAV 同步配置
 export interface WebDavSyncSettings {
   enabled?: boolean;
   autoSync?: boolean;
@@ -186,14 +220,20 @@ export interface WebDavSyncSettings {
   status?: WebDavSyncStatus;
 }
 
+export type RemoteSnapshotLayout = "current" | "legacy";
+
 // 远端快照信息（下载前预览）
 export interface RemoteSnapshotInfo {
   deviceName: string;
   createdAt: string;
   snapshotId: string;
   version: number;
+  protocolVersion: number;
+  dbCompatVersion?: number | null;
   compatible: boolean;
   artifacts: string[];
+  layout: RemoteSnapshotLayout;
+  remotePath: string;
 }
 
 // 应用设置类型（用于设置对话框与 Tauri API）
@@ -214,6 +254,22 @@ export interface Settings {
   silentStartup?: boolean;
   // 是否启用主页面本地代理功能（默认关闭）
   enableLocalProxy?: boolean;
+  // User has confirmed the local proxy first-run notice
+  proxyConfirmed?: boolean;
+  // User has confirmed the usage query first-run notice
+  usageConfirmed?: boolean;
+  // User has confirmed the stream check first-run notice
+  streamCheckConfirmed?: boolean;
+  // Whether to show the failover toggle independently on the main page
+  enableFailoverToggle?: boolean;
+  // User has confirmed the failover toggle first-run notice
+  failoverConfirmed?: boolean;
+  // User has confirmed the first-run welcome notice
+  firstRunNoticeConfirmed?: boolean;
+  // User has confirmed the auto-sync traffic warning
+  autoSyncConfirmed?: boolean;
+  // User has confirmed the common config first-run notice
+  commonConfigConfirmed?: boolean;
   // 首选语言（可选，默认中文）
   language?: "en" | "zh" | "ja";
 
@@ -243,13 +299,21 @@ export interface Settings {
   // ===== Skill 同步设置 =====
   // Skill 同步方式：auto（默认，优先 symlink）、symlink、copy
   skillSyncMethod?: SkillSyncMethod;
+  // Skill 存储位置：cc_switch（默认）或 unified（~/.agents/skills/）
+  skillStorageLocation?: SkillStorageLocation;
 
   // ===== WebDAV v2 同步设置 =====
   webdavSync?: WebDavSyncSettings;
 
+  // ===== 备份策略设置 =====
+  // Auto-backup interval in hours (0=disabled, default 24)
+  backupIntervalHours?: number;
+  // Maximum backup files to retain (default 10)
+  backupRetainCount?: number;
+
   // ===== 终端设置 =====
   // 首选终端应用（可选，默认使用系统默认终端）
-  // macOS: "terminal" | "iterm2" | "warp" | "alacritty" | "kitty" | "ghostty"
+  // macOS: "terminal" | "iterm2" | "warp" | "alacritty" | "kitty" | "ghostty" | "wezterm" | "kaku"
   // Windows: "cmd" | "powershell" | "wt"
   // Linux: "gnome-terminal" | "konsole" | "xfce4-terminal" | "alacritty" | "kitty" | "ghostty"
   preferredTerminal?: string;
@@ -466,6 +530,19 @@ export interface OpenClawModelCatalogEntry {
   alias?: string;
 }
 
+export interface OpenClawHealthWarning {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface OpenClawWriteOutcome {
+  backupPath?: string;
+  warnings: OpenClawHealthWarning[];
+}
+
+export type OpenClawToolsProfile = "minimal" | "coding" | "messaging" | "full";
+
 // OpenClaw 供应商配置（settings_config 结构）
 // 对应 OpenClaw 的 models.providers.<provider-id> 配置
 export interface OpenClawProviderConfig {
@@ -473,12 +550,16 @@ export interface OpenClawProviderConfig {
   apiKey?: string; // API 密钥
   api?: string; // API 协议类型（如 "openai-completions"、"anthropic"）
   models?: OpenClawModel[]; // 可用模型列表
+  headers?: Record<string, string>; // 自定义请求头（如 User-Agent）
+  authHeader?: boolean; // 供应商自定义认证开关（如 Longcat）
 }
 
 // OpenClaw agents.defaults 完整配置
 export interface OpenClawAgentsDefaults {
   model?: OpenClawDefaultModel;
   models?: Record<string, OpenClawModelCatalogEntry>;
+  timeoutSeconds?: number;
+  timeout?: number;
   [key: string]: unknown; // preserve unknown fields
 }
 
@@ -489,7 +570,7 @@ export interface OpenClawEnvConfig {
 
 // OpenClaw tools 配置（openclaw.json 的 tools 节点）
 export interface OpenClawToolsConfig {
-  profile?: string;
+  profile?: OpenClawToolsProfile | string;
   allow?: string[];
   deny?: string[];
   [key: string]: unknown; // preserve unknown fields
