@@ -25,10 +25,10 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/unmanaged", get(scan_unmanaged_skills))
         .route("/repos", get(get_skill_repos))
         .route("/repos", post(add_skill_repo))
-        .route("/repos/{owner}/{name}", delete(remove_skill_repo))
-        .route("/{id}/install", post(install_skill))
-        .route("/{id}/uninstall", delete(uninstall_skill))
-        .route("/{id}/toggle", post(toggle_skill_app))
+    .route("/repos/:owner/:name", delete(remove_skill_repo))
+    .route("/:id/install", post(install_skill))
+    .route("/:id/uninstall", delete(uninstall_skill))
+    .route("/:id/toggle", post(toggle_skill_app))
         .route("/import", post(import_skills))
 }
 

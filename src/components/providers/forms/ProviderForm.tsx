@@ -145,10 +145,27 @@ export function ProviderForm({
   const isEditMode = Boolean(initialData);
   const queryClient = useQueryClient();
   const { data: settingsData } = useSettingsQuery();
+  const COMMON_CONFIG_NOTICE_DISMISSED_KEY =
+    "cc-switch-common-config-notice-dismissed";
+  const [commonConfigNoticeDismissed, setCommonConfigNoticeDismissed] =
+    useState<boolean>(() => {
+      if (typeof window === "undefined") return false;
+      return (
+        localStorage.getItem(COMMON_CONFIG_NOTICE_DISMISSED_KEY) === "true"
+      );
+    });
+
   const showCommonConfigNotice =
-    settingsData != null && settingsData.commonConfigConfirmed !== true;
+    settingsData != null &&
+    settingsData.commonConfigConfirmed !== true &&
+    !commonConfigNoticeDismissed;
 
   const handleCommonConfigConfirm = async () => {
+    setCommonConfigNoticeDismissed(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(COMMON_CONFIG_NOTICE_DISMISSED_KEY, "true");
+    }
+
     try {
       if (settingsData) {
         const { webdavSync: _, ...rest } = settingsData;

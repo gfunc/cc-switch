@@ -6,7 +6,6 @@ use once_cell::sync::Lazy;
 use tauri::{Emitter, Manager};
 
 use crate::web::{create_router, handlers::ws::WsState, models::app_state::AppState};
-use crate::store::AppState as StoreAppState;
 
 // Global state to track web server
 static WEB_SERVER_HANDLE: Lazy<Mutex<Option<tokio::task::JoinHandle<()>>>> = Lazy::new(|| {
@@ -81,9 +80,11 @@ pub async fn start_web_server(
     let bind_addr = bind_address_from_flag(bind_all);
     let addr = SocketAddr::from((bind_addr, port));
     
-    // Get app state from Tauri
-    let app_state = app.state::<StoreAppState>();
-    let db_path = app_state.db.get_db_path();
+    // Resolve DB path from app config directory
+    let db_path = crate::config::get_app_config_dir()
+        .join("cc-switch.db")
+        .to_string_lossy()
+        .to_string();
     
     // Create web app state
     let web_state = Arc::new(AppState::new(&db_path)

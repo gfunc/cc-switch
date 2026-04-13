@@ -4,9 +4,10 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::env;
 use crate::web::{
     models::ApiResponse,
-    middleware::auth::validate_token,
+    middleware::auth::{validate_token, generate_token},
 };
 
 #[derive(Debug, Deserialize)]
@@ -30,7 +31,14 @@ pub struct LoginRequest {
 pub fn routes() -> Router {
     Router::new()
         .route("/verify", post(verify_token))
+        .route("/generate", post(generate_token_route))
         .route("/login", post(login_deprecated))
+}
+
+fn token_reveal_enabled() -> bool {
+    env::var("CC_SWITCH_ENABLE_TOKEN_REVEAL")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
 }
 
 async fn verify_token(
@@ -56,4 +64,17 @@ async fn login_deprecated(
     Json(ApiResponse::error(
         "Password login is no longer supported. Please generate a token using the CLI: cc-switch-web generate-token".to_string()
     ))
+}
+
+async fn generate_token_route() -> Json<ApiResponse<String>> {
+    if !token_reveal_enabled() {
+        return Json(ApiResponse::error(
+            "Token reveal is disabled. Set CC_SWITCH_ENABLE_TOKEN_REVEAL=true to enable this endpoint.".to_string(),
+        ));
+    }
+
+    match generate_token("admin") {
+        Ok(token) => Json(ApiResponse::success(token)),
+        Err(e) => Json(ApiResponse::error(format!("Failed to generate token: {}", e))),
+    }
 }

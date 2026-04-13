@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 
 export function WebServerSettings() {
   const { t } = useTranslation();
+  const desktopMode = isTauri();
   const [isRunning, setIsRunning] = useState(false);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,12 +41,18 @@ export function WebServerSettings() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!desktopMode) {
+      return;
+    }
+
     checkServerStatus();
     const interval = setInterval(checkServerStatus, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [desktopMode]);
 
   const checkServerStatus = async () => {
+    if (!desktopMode) return;
+
     try {
       const config = await invoke<{
         running: boolean;
@@ -73,6 +80,7 @@ export function WebServerSettings() {
   };
 
   const handleStart = async () => {
+    if (!desktopMode) return;
     setIsLoading(true);
     try {
       const url = await invoke<string>("start_web_server", {
@@ -100,6 +108,7 @@ export function WebServerSettings() {
   };
 
   const handleStop = async () => {
+    if (!desktopMode) return;
     setIsLoading(true);
     try {
       await invoke("stop_web_server");
@@ -125,6 +134,7 @@ export function WebServerSettings() {
   };
 
   const handleGenerateToken = async () => {
+    if (!desktopMode) return;
     try {
       const newToken = await invoke<string>("generate_web_token");
       setToken(newToken);
@@ -217,6 +227,15 @@ export function WebServerSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!desktopMode && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+            {t("settings.webServer.desktopOnly", {
+              defaultValue:
+                "Web server controls are available in desktop mode only. In Docker/web mode, use docker compose to manage service lifecycle.",
+            })}
+          </div>
+        )}
+
         {/* Status */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">

@@ -20,10 +20,10 @@ use crate::web::{
 pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
     Router::new()
         .route("/", get(list_sessions))
-        .route("/{id}", get(get_session))
-        .route("/{id}/resume", post(resume_session))
-        .route("/{id}", delete(delete_session))
-        .route("/{id}/messages", get(get_session_messages))
+    .route("/:id", get(get_session))
+    .route("/:id/resume", post(resume_session))
+    .route("/:id", delete(delete_session))
+    .route("/:id/messages", get(get_session_messages))
 }
 
 async fn list_sessions(

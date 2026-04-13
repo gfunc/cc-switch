@@ -14,7 +14,8 @@ import { proxyApi } from "./proxy";
 import { openclawApi } from "./openclaw";
 import { sessionsApi } from "./sessions";
 import { workspaceApi } from "./workspace";
-import * as configApi from "./config";
+import * as tauriConfigApi from "./config";
+import { authApi } from "./auth";
 
 import {
   providersApi as webProvidersApi,
@@ -22,10 +23,16 @@ import {
 } from "./web/providers";
 import { settingsApi as webSettingsApi } from "./web/settings";
 import { mcpApi as webMcpApi } from "./web/mcp";
+import * as webConfigApi from "./web/config";
 
 export type { AppId } from "./types";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
+export type {
+  ManagedAuthProvider,
+  ManagedAuthStatus,
+  ManagedAuthDeviceCodeResponse,
+} from "./auth";
 
 // Runtime API selection based on environment
 // Desktop app uses Tauri APIs, Web uses HTTP APIs
@@ -35,6 +42,7 @@ export const universalProvidersApi = isTauri()
   : webUniversalProvidersApi;
 export const settingsApi = isTauri() ? tauriSettingsApi : webSettingsApi;
 export const mcpApi = isTauri() ? tauriMcpApi : webMcpApi;
+export const configApi = isTauri() ? tauriConfigApi : webConfigApi;
 export { promptsApi };
 export { skillsApi };
 export { usageApi };
@@ -43,4 +51,4 @@ export { proxyApi };
 export { openclawApi };
 export { sessionsApi };
 export { workspaceApi };
-export { configApi };
+export { authApi };

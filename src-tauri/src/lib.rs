@@ -1,5 +1,7 @@
 mod app_config;
 mod app_store;
+#[cfg(feature = "api-only")]
+pub mod api_only;
 mod auto_launch;
 mod claude_mcp;
 mod claude_plugin;
@@ -12,6 +14,9 @@ mod error;
 mod gemini_config;
 mod gemini_mcp;
 mod init_status;
+mod lightweight;
+#[cfg(target_os = "linux")]
+mod linux_fix;
 mod mcp;
 mod openclaw_config;
 mod opencode_config;
@@ -20,17 +25,18 @@ mod prompt;
 mod prompt_files;
 mod provider;
 mod provider_defaults;
-pub mod proxy;
+mod proxy;
 mod services;
 mod session_manager;
 mod settings;
 mod store;
+
 mod tray;
 mod usage_script;
 mod web;
 mod web_server;
 
-pub use app_config::{AppType, McpApps, McpServer, MultiAppConfig};
+pub use app_config::{AppType, InstalledSkill, McpApps, McpServer, MultiAppConfig, SkillApps};
 pub use codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
 pub use commands::open_provider_terminal;
 pub use commands::*;
@@ -46,11 +52,10 @@ pub use mcp::{
 };
 pub use provider::{Provider, ProviderMeta};
 pub use services::{
+    skill::{migrate_skills_to_ssot, ImportSkillSelection},
     ConfigService, EndpointLatency, McpService, PromptService, ProviderService, ProxyService,
     SkillService, SpeedtestService,
 };
-pub use services::env_checker::EnvConflict;
-pub use services::env_manager::{delete_env_vars, restore_from_backup, BackupInfo};
 pub use settings::{update_settings, AppSettings};
 pub use store::AppState;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -133,6 +138,10 @@ fn handle_deeplink_url(
                     let _ = window.unminimize();
                     let _ = window.show();
                     let _ = window.set_focus();
+                    #[cfg(target_os = "linux")]
+                    {
+                        linux_fix::nudge_main_window(window.clone());
+                    }
                     log::info!("✓ Window shown and focused");
                 }
             }
@@ -206,6 +215,12 @@ pub fn run() {
                 log::debug!("  arg[{i}]: {}", redact_url_for_log(arg));
             }
 
+            if crate::lightweight::is_lightweight_mode() {
+                if let Err(e) = crate::lightweight::exit_lightweight_mode(app) {
+                    log::error!("退出轻量模式重建窗口失败: {e}");
+                }
+            }
+
             // Check for deep link URL in args (mainly for Windows/Linux command line)
             let mut found_deeplink = false;
             for arg in &args {
@@ -224,6 +239,10 @@ pub fn run() {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
+                #[cfg(target_os = "linux")]
+                {
+                    linux_fix::nudge_main_window(window.clone());
+                }
             }
         }));
     }
@@ -452,18 +471,81 @@ pub fn run() {
                 Err(e) => log::warn!("✗ Failed to read skills migration flag: {e}"),
             }
 
-            // 2. OpenCode 供应商导入（累加式模式，需特殊处理）
-            // OpenCode 与其他应用不同：配置文件中可同时存在多个供应商
-            // 需要遍历 provider 字段下的每个供应商并导入
+            // 1.5. 自动导入 live 配置 + seed 官方预设供应商（Claude / Codex / Gemini）
+            //
+            // 先 import 后 seed 是有意为之：先把用户手动配置的 settings.json / auth.json / .env
+            // 落成 "default" provider 设为 current，再追加官方预设（is_current=false）。
+            // 这样用户切到官方预设时，回填机制会保护原 live 配置不丢失。
+            //
+            // 捕获首次运行快照：所有全新装用户都会看到欢迎弹窗介绍 CC Switch 的工作方式。
+            // 读失败时默认不弹，宁可漏弹也不要因为故障打扰用户。
+            let first_run_already_confirmed = crate::settings::get_settings()
+                .first_run_notice_confirmed
+                .unwrap_or(false);
+            let fresh_install_at_startup =
+                app_state.db.is_providers_empty().unwrap_or(false);
+
+            for app_type in
+                crate::app_config::AppType::all().filter(|t| !t.is_additive_mode())
+            {
+                match crate::services::provider::import_default_config(
+                    &app_state,
+                    app_type.clone(),
+                ) {
+                    Ok(true) => log::info!(
+                        "✓ Imported live config for {} as default provider",
+                        app_type.as_str()
+                    ),
+                    Ok(false) => log::debug!(
+                        "○ {} already has providers; live import skipped",
+                        app_type.as_str()
+                    ),
+                    Err(e) => log::debug!(
+                        "○ No live config to import for {}: {e}",
+                        app_type.as_str()
+                    ),
+                }
+            }
+
+            match app_state.db.init_default_official_providers() {
+                Ok(count) if count > 0 => {
+                    log::info!("✓ Seeded {count} official provider(s)");
+                }
+                Ok(_) => {}
+                Err(e) => log::warn!("✗ Failed to seed official providers: {e}"),
+            }
+
+            // 老用户 / 已确认的路径由 `fresh_install_at_startup` 自行拦截，这里不做写入。
+            // 字段只由前端在用户点击"我知道了"时 save_settings 回写，语义是"用户显式确认过"。
+            if !first_run_already_confirmed && fresh_install_at_startup {
+                log::info!("✓ First-run welcome notice pending");
+            }
+
+            // 1.6. 自动同步 OpenCode / OpenClaw 的 live providers 到数据库
+            //
+            // additive 模式（OpenCode / OpenClaw）的 import 函数本身按 id 幂等，
+            // 已有的 provider 会被跳过，所以每次启动都跑是安全的——既保证新装
+            // 用户开箱可见 live 中的供应商，也让外部修改的 live 文件能在重启
+            // 后同步到数据库（与之前依赖前端"导入当前配置"按钮手动触发不同）。
+            //
+            // 底层 read_*_config 在文件不存在时返回默认空配置，因此新装且无
+            // live 文件的用户走 Ok(0) 路径，不会产生错误日志噪音。
             match crate::services::provider::import_opencode_providers_from_live(&app_state) {
                 Ok(count) if count > 0 => {
                     log::info!("✓ Imported {count} OpenCode provider(s) from live config");
                 }
-                Ok(_) => log::debug!("○ No OpenCode providers found to import"),
-                Err(e) => log::warn!("○ Failed to import OpenCode providers: {e}"),
+                Ok(_) => log::debug!("○ No new OpenCode providers to import"),
+                Err(e) => log::warn!("✗ Failed to import OpenCode providers: {e}"),
+            }
+            match crate::services::provider::import_openclaw_providers_from_live(&app_state) {
+                Ok(count) if count > 0 => {
+                    log::info!("✓ Imported {count} OpenClaw provider(s) from live config");
+                }
+                Ok(_) => log::debug!("○ No new OpenClaw providers to import"),
+                Err(e) => log::warn!("✗ Failed to import OpenClaw providers: {e}"),
             }
 
-            // 2.2 OMO 配置导入（当数据库中无 OMO provider 时，从本地文件导入）
+            // 2. OMO 配置导入（当数据库中无 OMO provider 时，从本地文件导入）
             {
                 let has_omo = app_state
                     .db
@@ -512,17 +594,6 @@ pub fn run() {
                         }
                     }
                 }
-            }
-
-            // 2.4 OpenClaw 供应商导入（累加式模式，需特殊处理）
-            // OpenClaw 与 OpenCode 类似：配置文件中可同时存在多个供应商
-            // 需要遍历 models.providers 字段下的每个供应商并导入
-            match crate::services::provider::import_openclaw_providers_from_live(&app_state) {
-                Ok(count) if count > 0 => {
-                    log::info!("✓ Imported {count} OpenClaw provider(s) from live config");
-                }
-                Ok(_) => log::debug!("○ No OpenClaw providers found to import"),
-                Err(e) => log::warn!("○ Failed to import OpenClaw providers: {e}"),
             }
 
             // 3. 导入 MCP 服务器配置（表空时触发）
@@ -639,6 +710,12 @@ pub fn run() {
                     let urls = event.urls();
                     log::info!("Received {} URL(s)", urls.len());
 
+                    if crate::lightweight::is_lightweight_mode() {
+                        if let Err(e) = crate::lightweight::exit_lightweight_mode(&app_handle) {
+                            log::error!("退出轻量模式重建窗口失败: {e}");
+                        }
+                    }
+
                     for (i, url) in urls.iter().enumerate() {
                         let url_str = url.as_str();
                         log::debug!("  URL[{i}]: {}", redact_url_for_log(url_str));
@@ -714,6 +791,30 @@ pub fn run() {
             let skill_service = SkillService::new();
             app.manage(commands::skill::SkillServiceState(Arc::new(skill_service)));
 
+            // 初始化 CopilotAuthManager
+            {
+                use crate::proxy::providers::copilot_auth::CopilotAuthManager;
+                use commands::CopilotAuthState;
+                use tokio::sync::RwLock;
+
+                let app_config_dir = crate::config::get_app_config_dir();
+                let copilot_auth_manager = CopilotAuthManager::new(app_config_dir);
+                app.manage(CopilotAuthState(Arc::new(RwLock::new(copilot_auth_manager))));
+                log::info!("✓ CopilotAuthManager initialized");
+            }
+
+            // 初始化 CodexOAuthManager (ChatGPT Plus/Pro 反代)
+            {
+                use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
+                use commands::CodexOAuthState;
+                use tokio::sync::RwLock;
+
+                let app_config_dir = crate::config::get_app_config_dir();
+                let codex_oauth_manager = CodexOAuthManager::new(app_config_dir);
+                app.manage(CodexOAuthState(Arc::new(RwLock::new(codex_oauth_manager))));
+                log::info!("✓ CodexOAuthManager initialized");
+            }
+
             // 初始化全局出站代理 HTTP 客户端
             {
                 let db = &app.state::<AppState>().db;
@@ -770,15 +871,90 @@ pub fn run() {
                     }
                 }
 
+                initialize_common_config_snippets(&state);
+
                 // 检查 settings 表中的代理状态，自动恢复代理服务
                 restore_proxy_state_on_startup(&state).await;
-            });
-            // Auto-start web server if CC_SWITCH_ENABLE_WEB is set
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = web_server::auto_start_web_server(app_handle).await {
-                    log::error!("Failed to auto-start web server: {}", e);
+
+                // Periodic backup check (on startup)
+                if let Err(e) = state.db.periodic_backup_if_needed() {
+                    log::warn!("Periodic backup failed on startup: {e}");
                 }
+
+                // Periodic maintenance timer: run once per day while the app is running
+                let db_for_timer = state.db.clone();
+                tauri::async_runtime::spawn(async move {
+                    const PERIODIC_MAINTENANCE_INTERVAL_SECS: u64 = 24 * 60 * 60;
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                        PERIODIC_MAINTENANCE_INTERVAL_SECS,
+                    ));
+                    interval.tick().await; // skip immediate first tick (already checked above)
+                    loop {
+                        interval.tick().await;
+                        if let Err(e) = db_for_timer.periodic_backup_if_needed() {
+                            log::warn!("Periodic maintenance timer failed: {e}");
+                        }
+                    }
+                });
+
+                // Session log usage sync: 启动时同步一次，之后每 60 秒检查
+                let db_for_session_sync = state.db.clone();
+                tauri::async_runtime::spawn(async move {
+                    const SESSION_SYNC_INTERVAL_SECS: u64 = 60;
+
+                    // 首次同步
+                    if let Err(e) =
+                        crate::services::session_usage::sync_claude_session_logs(
+                            &db_for_session_sync,
+                        )
+                    {
+                        log::warn!("Session usage initial sync failed: {e}");
+                    }
+                    if let Err(e) =
+                        crate::services::session_usage_codex::sync_codex_usage(
+                            &db_for_session_sync,
+                        )
+                    {
+                        log::warn!("Codex usage initial sync failed: {e}");
+                    }
+                    if let Err(e) =
+                        crate::services::session_usage_gemini::sync_gemini_usage(
+                            &db_for_session_sync,
+                        )
+                    {
+                        log::warn!("Gemini usage initial sync failed: {e}");
+                    }
+
+                    // 定期同步
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                        SESSION_SYNC_INTERVAL_SECS,
+                    ));
+                    interval.tick().await; // skip immediate first tick
+                    loop {
+                        interval.tick().await;
+                        if let Err(e) =
+                            crate::services::session_usage::sync_claude_session_logs(
+                                &db_for_session_sync,
+                            )
+                        {
+                            log::warn!("Session usage periodic sync failed: {e}");
+                        }
+                        if let Err(e) =
+                            crate::services::session_usage_codex::sync_codex_usage(
+                                &db_for_session_sync,
+                            )
+                        {
+                            log::warn!("Codex usage periodic sync failed: {e}");
+                        }
+                        if let Err(e) =
+                            crate::services::session_usage_gemini::sync_gemini_usage(
+                                &db_for_session_sync,
+                            )
+                        {
+                            log::warn!("Gemini usage periodic sync failed: {e}");
+                        }
+                    }
+                });
             });
 
             // Linux: 禁用 WebKitGTK 硬件加速，防止 EGL 初始化失败导致白屏
@@ -811,8 +987,17 @@ pub fn run() {
                     // 正常启动模式：显示窗口
                     let _ = window.show();
                     log::info!("正常启动模式：主窗口已显示");
+
+                    // Linux: 解决首次启动 UI 无响应问题（Tauri #10746 + wry #637）。
+                    // 启动时 webview 未获取焦点 + surface 尺寸协商失败，导致点击无效。
+                    // 这里做 set_focus + 伪 resize，等价于无视觉版本的"最大化-还原"。
+                    #[cfg(target_os = "linux")]
+                    {
+                        linux_fix::nudge_main_window(window.clone());
+                    }
                 }
             }
+
 
             Ok(())
         })
@@ -847,11 +1032,16 @@ pub fn run() {
             commands::save_settings,
             commands::get_rectifier_config,
             commands::set_rectifier_config,
+            commands::get_optimizer_config,
+            commands::set_optimizer_config,
+            commands::get_copilot_optimizer_config,
+            commands::set_copilot_optimizer_config,
             commands::get_log_config,
             commands::set_log_config,
             commands::restart_app,
             commands::check_for_updates,
             commands::is_portable_mode,
+            commands::copy_text_to_clipboard,
             commands::get_claude_plugin_status,
             commands::read_claude_plugin_config,
             commands::apply_claude_plugin_config,
@@ -867,6 +1057,11 @@ pub fn run() {
             // usage query
             commands::queryProviderUsage,
             commands::testUsageScript,
+            // subscription quota
+            commands::get_subscription_quota,
+            commands::get_codex_oauth_quota,
+            commands::get_coding_plan_quota,
+            commands::get_balance,
             // New MCP via config.json (SSOT)
             commands::get_mcp_config,
             commands::upsert_mcp_server_in_config,
@@ -885,6 +1080,8 @@ pub fn run() {
             commands::enable_prompt,
             commands::import_prompt_from_file,
             commands::get_current_prompt_file_content,
+            // model list fetch (OpenAI-compatible /v1/models)
+            commands::fetch_models_for_config,
             // ours: endpoint speed test + custom endpoint management
             commands::test_api_endpoints,
             commands::get_custom_endpoints,
@@ -907,6 +1104,11 @@ pub fn run() {
             commands::save_file_dialog,
             commands::open_file_dialog,
             commands::open_zip_file_dialog,
+            commands::create_db_backup,
+            commands::list_db_backups,
+            commands::restore_db_backup,
+            commands::rename_db_backup,
+            commands::delete_db_backup,
             commands::sync_current_providers_live,
             // Deep link import
             commands::parse_deeplink,
@@ -920,12 +1122,19 @@ pub fn run() {
             commands::restore_env_backup,
             // Skill management (v3.10.0+ unified)
             commands::get_installed_skills,
+            commands::get_skill_backups,
+            commands::delete_skill_backup,
             commands::install_skill_unified,
             commands::uninstall_skill_unified,
+            commands::restore_skill_backup,
             commands::toggle_skill_app,
             commands::scan_unmanaged_skills,
             commands::import_skills_from_apps,
             commands::discover_available_skills,
+            commands::check_skill_updates,
+            commands::update_skill,
+            commands::migrate_skill_storage,
+            commands::search_skills_sh,
             // Skill management (legacy API compatibility)
             commands::get_skills,
             commands::get_skills_for_app,
@@ -984,6 +1193,9 @@ pub fn run() {
             commands::update_model_pricing,
             commands::delete_model_pricing,
             commands::check_provider_limits,
+            // Session usage sync
+            commands::sync_session_usage,
+            commands::get_usage_data_sources,
             // Stream health check
             commands::stream_check_provider,
             commands::stream_check_all_providers,
@@ -992,6 +1204,8 @@ pub fn run() {
             // Session manager
             commands::list_sessions,
             commands::get_session_messages,
+            commands::delete_session,
+            commands::delete_sessions,
             commands::launch_session_terminal,
             commands::get_tool_versions,
             // Provider terminal
@@ -1008,6 +1222,8 @@ pub fn run() {
             // OpenClaw specific
             commands::import_openclaw_providers_from_live,
             commands::get_openclaw_live_provider_ids,
+            commands::get_openclaw_live_provider,
+            commands::scan_openclaw_config_health,
             commands::get_openclaw_default_model,
             commands::set_openclaw_default_model,
             commands::get_openclaw_model_catalog,
@@ -1026,13 +1242,36 @@ pub fn run() {
             commands::scan_local_proxies,
             // Window theme control
             commands::set_window_theme,
+            // Generic managed auth commands
+            commands::auth_start_login,
+            commands::auth_poll_for_account,
+            commands::auth_list_accounts,
+            commands::auth_get_status,
+            commands::auth_remove_account,
+            commands::auth_set_default_account,
+            commands::auth_logout,
+            // Copilot OAuth commands (multi-account support)
+            commands::copilot_start_device_flow,
+            commands::copilot_poll_for_auth,
+            commands::copilot_poll_for_account,
+            commands::copilot_list_accounts,
+            commands::copilot_remove_account,
+            commands::copilot_set_default_account,
+            commands::copilot_get_auth_status,
+            commands::copilot_logout,
+            commands::copilot_is_authenticated,
+            commands::copilot_get_token,
+            commands::copilot_get_token_for_account,
+            commands::copilot_get_models,
+            commands::copilot_get_models_for_account,
+            commands::copilot_get_usage,
+            commands::copilot_get_usage_for_account,
+            // OMO commands
             commands::read_omo_local_file,
             commands::get_current_omo_provider_id,
-            commands::get_omo_provider_count,
             commands::disable_current_omo,
             commands::read_omo_slim_local_file,
             commands::get_current_omo_slim_provider_id,
-            commands::get_omo_slim_provider_count,
             commands::disable_current_omo_slim,
             // Workspace files (OpenClaw)
             commands::read_workspace_file,
@@ -1042,13 +1281,12 @@ pub fn run() {
             commands::read_daily_memory_file,
             commands::write_daily_memory_file,
             commands::delete_daily_memory_file,
-            web_server::start_web_server,
-            web_server::stop_web_server,
-            web_server::is_web_server_running,
-            web_server::get_web_server_url,
-            web_server::is_web_server_bind_all,
-            web_server::generate_web_token,
-            web_server::get_web_server_config,
+            commands::search_daily_memory_files,
+            commands::open_workspace_directory,
+            // lightweight mode (for testing or low-resource environments)
+            commands::enter_lightweight_mode,
+            commands::exit_lightweight_mode,
+            commands::is_lightweight_mode,
         ]);
 
     let app = builder
@@ -1057,9 +1295,18 @@ pub fn run() {
 
     app.run(|app_handle, event| {
         // 处理退出请求（所有平台）
-        if let RunEvent::ExitRequested { api, .. } = &event {
-            log::info!("收到退出请求，开始清理...");
-            // 阻止立即退出，执行清理
+        if let RunEvent::ExitRequested { api, code, .. } = &event {
+            // code 为 None 表示运行时自动触发（如隐藏窗口的 WebView 被回收导致无存活窗口），
+            // 此时应仅阻止退出、保持托盘后台运行；
+            // code 为 Some(_) 表示用户主动调用 app.exit() 退出（如托盘菜单"退出"），
+            // 此时执行清理后退出。
+            if code.is_none() {
+                log::info!("运行时触发退出请求（无存活窗口），阻止退出以保持托盘后台运行");
+                api.prevent_exit();
+                return;
+            }
+
+            log::info!("收到用户主动退出请求 (code={code:?})，开始清理...");
             api.prevent_exit();
 
             let app_handle = app_handle.clone();
@@ -1090,6 +1337,10 @@ pub fn run() {
                         let _ = window.show();
                         let _ = window.set_focus();
                         tray::apply_tray_policy(app_handle, true);
+                    } else if crate::lightweight::is_lightweight_mode() {
+                        if let Err(e) = crate::lightweight::exit_lightweight_mode(app_handle) {
+                            log::error!("退出轻量模式重建窗口失败: {e}");
+                        }
                     }
                 }
                 // 处理通过自定义 URL 协议触发的打开事件（例如 ccswitch://...）
@@ -1099,6 +1350,13 @@ pub fn run() {
                         log::info!("RunEvent::Opened with URL: {url_str}");
 
                         if url_str.starts_with("ccswitch://") {
+                            if crate::lightweight::is_lightweight_mode() {
+                                if let Err(e) = crate::lightweight::exit_lightweight_mode(app_handle)
+                                {
+                                    log::error!("退出轻量模式重建窗口失败: {e}");
+                                }
+                            }
+
                             // 解析并广播深链接事件，复用与 single_instance 相同的逻辑
                             match crate::deeplink::parse_deeplink_url(&url_str) {
                                 Ok(request) => {
@@ -1252,6 +1510,85 @@ async fn restore_proxy_state_on_startup(state: &store::AppState) {
     }
 }
 
+fn initialize_common_config_snippets(state: &store::AppState) {
+    // Auto-extract common config snippets from clean live files when snippet is missing.
+    // This must run before proxy takeover is restored on startup, otherwise we'd read
+    // proxy-placeholder configs instead of the user's actual live settings.
+    for app_type in crate::app_config::AppType::all() {
+        if !state
+            .db
+            .should_auto_extract_config_snippet(app_type.as_str())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+
+        let settings = match crate::services::provider::ProviderService::read_live_settings(
+            app_type.clone(),
+        ) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        match crate::services::provider::ProviderService::extract_common_config_snippet_from_settings(
+            app_type.clone(),
+            &settings,
+        ) {
+            Ok(snippet) if !snippet.is_empty() && snippet != "{}" => {
+                match state.db.set_config_snippet(app_type.as_str(), Some(snippet)) {
+                    Ok(()) => {
+                        let _ = state.db.set_config_snippet_cleared(app_type.as_str(), false);
+                        log::info!(
+                            "✓ Auto-extracted common config snippet for {}",
+                            app_type.as_str()
+                        );
+                    }
+                    Err(e) => log::warn!(
+                        "✗ Failed to save config snippet for {}: {e}",
+                        app_type.as_str()
+                    ),
+                }
+            }
+            Ok(_) => log::debug!(
+                "○ Live config for {} has no extractable common fields",
+                app_type.as_str()
+            ),
+            Err(e) => log::warn!(
+                "✗ Failed to extract config snippet for {}: {e}",
+                app_type.as_str()
+            ),
+        }
+    }
+
+    let should_run_legacy_migration = state
+        .db
+        .is_legacy_common_config_migrated()
+        .map(|done| !done)
+        .unwrap_or(true);
+
+    if should_run_legacy_migration {
+        for app_type in [
+            crate::app_config::AppType::Claude,
+            crate::app_config::AppType::Codex,
+            crate::app_config::AppType::Gemini,
+        ] {
+            if let Err(e) = crate::services::provider::ProviderService::migrate_legacy_common_config_usage_if_needed(
+                state,
+                app_type.clone(),
+            ) {
+                log::warn!(
+                    "✗ Failed to migrate legacy common-config usage for {}: {e}",
+                    app_type.as_str()
+                );
+            }
+        }
+
+        if let Err(e) = state.db.set_legacy_common_config_migrated(true) {
+            log::warn!("✗ Failed to persist legacy common-config migration flag: {e}");
+        }
+    }
+}
+
 // ============================================================
 // 迁移错误对话框辅助函数
 // ============================================================
@@ -1379,86 +1716,4 @@ fn show_database_init_error_dialog(
             exit_text.to_string(),
         ))
         .blocking_show()
-}
-
-
-
-// ============================================================
-// Headless Mode (No GUI)
-// ============================================================
-
-pub fn run_headless(enable_web: bool, web_port: u16) {
-    use std::sync::Arc;
-    panic_hook::setup_panic_hook();
-    let app_config_dir = crate::config::get_app_config_dir();
-    let db_path = app_config_dir.join("cc-switch.db");
-    let db = match crate::database::Database::init() {
-        Ok(db) => Arc::new(db),
-        Err(e) => {
-            eprintln!("❌ Failed to initialize database: {e}");
-            eprintln!("   Database path: {}", db_path.display());
-            std::process::exit(1);
-        }
-    };
-    
-    println!("✅ Database initialized");
-    
-    let app_state = AppState::new(db);
-    
-    {
-        let proxy_url = app_state.db.get_global_proxy_url().ok().flatten();
-        if let Err(e) = crate::proxy::http_client::init(proxy_url.as_deref()) {
-            eprintln!("⚠️  Failed to initialize HTTP client: {e}");
-        }
-    }
-    
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-    rt.block_on(async {
-        let mut apps_to_restore = Vec::new();
-        for app_type in ["claude", "codex", "gemini"] {
-            if let Ok(config) = app_state.db.get_proxy_config_for_app(app_type).await {
-                if config.enabled {
-                    apps_to_restore.push(app_type);
-                }
-            }
-        }
-        for app_type in apps_to_restore {
-            println!("🔄 Restoring proxy for {app_type}...");
-            if let Err(e) = app_state.proxy_service.set_takeover_for_app(app_type, true).await {
-                eprintln!("⚠️  Failed to restore proxy for {app_type}: {e}");
-            }
-        }
-        
-        if enable_web {
-            let db_path_str = db_path.to_string_lossy().to_string();
-            let bind_addr = web_server::get_bind_address();
-            let addr = std::net::SocketAddr::from((bind_addr, web_port));
-            
-            match web::create_app(&db_path_str) {
-                Ok(app_router) => {
-                    match tokio::net::TcpListener::bind(addr).await {
-                        Ok(listener) => {
-                            println!("🌐 Web server started on http://{}", addr);
-                            tokio::spawn(async move {
-                                if let Err(e) = axum::serve(listener, app_router).await {
-                                    eprintln!("❌ Web server error: {e}");
-                                }
-                            });
-                        }
-                        Err(e) => {
-                            eprintln!("❌ Failed to bind web server to {}: {e}", addr);
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("❌ Failed to create web server: {e}");
-                }
-            }
-        }
-        println!("\n✨ CC Switch headless mode running");
-        println!("   Press Ctrl+C to stop\n");
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-        }
-    });
 }

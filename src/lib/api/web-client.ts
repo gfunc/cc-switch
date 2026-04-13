@@ -47,12 +47,37 @@ async function fetchWithAuth(
   return response;
 }
 
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  error?: string | null;
+}
+
+async function parseApiEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
+  const responseText = await response.text();
+  const statusLabel = `${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+
+  if (!responseText) {
+    throw new Error(`HTTP ${statusLabel}`);
+  }
+
+  let payload: ApiEnvelope<T>;
+  try {
+    payload = JSON.parse(responseText) as ApiEnvelope<T>;
+  } catch {
+    throw new Error(`HTTP ${statusLabel}`);
+  }
+
+  if (!payload.success) {
+    throw new Error(payload.error || `HTTP ${statusLabel}`);
+  }
+
+  return payload;
+}
+
 export async function get<T>(url: string): Promise<T> {
   const response = await fetchWithAuth(url);
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || "Request failed");
-  }
+  const data = await parseApiEnvelope<T>(response);
   return data.data;
 }
 
@@ -61,10 +86,7 @@ export async function post<T>(url: string, body?: unknown): Promise<T> {
     method: "POST",
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || "Request failed");
-  }
+  const data = await parseApiEnvelope<T>(response);
   return data.data;
 }
 
@@ -73,10 +95,7 @@ export async function put<T>(url: string, body?: unknown): Promise<T> {
     method: "PUT",
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || "Request failed");
-  }
+  const data = await parseApiEnvelope<T>(response);
   return data.data;
 }
 
@@ -84,10 +103,7 @@ export async function del<T>(url: string): Promise<T> {
   const response = await fetchWithAuth(url, {
     method: "DELETE",
   });
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || "Request failed");
-  }
+  const data = await parseApiEnvelope<T>(response);
   return data.data;
 }
 

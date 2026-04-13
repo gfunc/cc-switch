@@ -52,10 +52,18 @@ export const settingsApi = {
   },
 
   async getConfigDir(appId: AppId): Promise<string> {
-    const response = await get<{ path: string }>(
-      `/settings/config-dir?app=${appId}`,
-    );
-    return response.path;
+    try {
+      const response = await get<{ path: string }>(
+        `/settings/config-dir?app=${appId}`,
+      );
+      return typeof response?.path === "string" ? response.path : "";
+    } catch (error) {
+      console.warn(
+        "getConfigDir endpoint unavailable in web mode, using default path fallback",
+        error,
+      );
+      return "";
+    }
   },
 
   async openConfigFolder(_appId: AppId): Promise<void> {
@@ -82,10 +90,18 @@ export const settingsApi = {
   },
 
   async getAppConfigDirOverride(): Promise<string | null> {
-    const response = await get<{ path: string | null }>(
-      "/settings/app-config-dir-override",
-    );
-    return response.path;
+    try {
+      const response = await get<{ path: string | null }>(
+        "/settings/app-config-dir-override",
+      );
+      return response?.path ?? null;
+    } catch (error) {
+      console.warn(
+        "getAppConfigDirOverride endpoint unavailable in web mode, using null override",
+        error,
+      );
+      return null;
+    }
   },
 
   async setAppConfigDirOverride(path: string | null): Promise<boolean> {

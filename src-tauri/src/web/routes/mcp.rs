@@ -25,10 +25,10 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/", get(list_mcp_servers))
         .route("/", post(create_mcp_server))
         .route("/import", post(import_mcp))
-        .route("/{id}", get(get_mcp_server))
-        .route("/{id}", put(update_mcp_server))
-        .route("/{id}", delete(delete_mcp_server))
-        .route("/{id}/toggle", post(toggle_mcp_server))
+    .route("/:id", get(get_mcp_server))
+    .route("/:id", put(update_mcp_server))
+    .route("/:id", delete(delete_mcp_server))
+    .route("/:id/toggle", post(toggle_mcp_server))
 }
 
 fn row_to_mcp_server(row: &rusqlite::Row) -> rusqlite::Result<McpServer> {

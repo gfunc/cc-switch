@@ -29,8 +29,16 @@ export const providersApi = {
     return post("/providers", { provider, app: appId });
   },
 
-  async update(provider: Provider, appId: AppId): Promise<boolean> {
-    return put(`/providers/${provider.id}`, { provider, app: appId });
+  async update(
+    provider: Provider,
+    appId: AppId,
+    originalId?: string,
+  ): Promise<boolean> {
+    return put(`/providers/${originalId ?? provider.id}`, {
+      provider,
+      app: appId,
+      originalId,
+    });
   },
 
   async delete(id: string, appId: AppId): Promise<boolean> {

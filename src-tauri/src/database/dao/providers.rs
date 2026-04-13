@@ -43,8 +43,18 @@ impl Database {
                 let meta_str: String = row.get(10)?;
                 let in_failover_queue: bool = row.get(11)?;
 
-                let settings_config =
-                    serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
+                let settings_config = match serde_json::from_str(&settings_config_str) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to parse settings_config for provider '{}' (app_type={}): {}",
+                            &id,
+                            app_type,
+                            e
+                        );
+                        serde_json::Value::Null
+                    }
+                };
                 let meta: ProviderMeta = serde_json::from_str(&meta_str).unwrap_or_default();
 
                 Ok((
@@ -150,7 +160,18 @@ impl Database {
                 let meta_str: String = row.get(9)?;
                 let in_failover_queue: bool = row.get(10)?;
 
-                let settings_config = serde_json::from_str(&settings_config_str).unwrap_or(serde_json::Value::Null);
+                let settings_config = match serde_json::from_str(&settings_config_str) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to parse settings_config for provider '{}' (app_type={}): {}",
+                            id,
+                            app_type,
+                            e
+                        );
+                        serde_json::Value::Null
+                    }
+                };
                 let meta: ProviderMeta = serde_json::from_str(&meta_str).unwrap_or_default();
 
                 Ok(Provider {

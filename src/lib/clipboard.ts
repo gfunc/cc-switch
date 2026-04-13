@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/environment";
 
 export async function copyText(text: string): Promise<void> {
+  if (!isTauri()) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
   try {
     await invoke("copy_text_to_clipboard", { text });
     return;

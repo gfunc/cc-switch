@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/environment";
+import { webAuthApi } from "./web/auth";
 
 export type ManagedAuthProvider = "github_copilot" | "codex_oauth";
 
@@ -90,6 +92,13 @@ export async function authLogout(
   });
 }
 
+export async function generateWebAdminToken(): Promise<string> {
+  if (isTauri()) {
+    return invoke<string>("generate_web_token");
+  }
+  return webAuthApi.generateToken();
+}
+
 export const authApi = {
   authStartLogin,
   authPollForAccount,
@@ -98,4 +107,5 @@ export const authApi = {
   authRemoveAccount,
   authSetDefaultAccount,
   authLogout,
+  generateWebAdminToken,
 };

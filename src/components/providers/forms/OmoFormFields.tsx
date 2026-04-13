@@ -40,6 +40,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isTauri } from "@/lib/environment";
 import { toast } from "sonner";
 import { useReadOmoLocalFile, useReadOmoSlimLocalFile } from "@/lib/query/omo";
 import {
@@ -801,6 +802,7 @@ export function OmoFormFields({
   const readLocalFile = useReadOmoLocalFile();
   const readSlimLocalFile = useReadOmoSlimLocalFile();
   const [localFilePath, setLocalFilePath] = useState<string | null>(null);
+  const desktopOnlyImport = !isTauri();
 
   const handleImportFromLocal = useCallback(async () => {
     try {
@@ -1142,8 +1144,16 @@ export function OmoFormFields({
             variant="outline"
             size="sm"
             className="h-7 text-xs"
-            disabled={readLocalFile.isPending}
+            disabled={readLocalFile.isPending || desktopOnlyImport}
             onClick={handleImportFromLocal}
+            title={
+              desktopOnlyImport
+                ? t("omo.importLocalDesktopOnly", {
+                    defaultValue:
+                      "Local import is only available in desktop mode",
+                  })
+                : undefined
+            }
           >
             {readLocalFile.isPending ? (
               <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />

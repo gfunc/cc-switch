@@ -18,10 +18,10 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
     Router::new()
         .route("/", get(list_prompts))
         .route("/", post(create_prompt))
-        .route("/{id}", get(get_prompt))
-        .route("/{id}", put(update_prompt))
-        .route("/{id}", delete(delete_prompt))
-        .route("/{id}/activate", post(activate_prompt))
+    .route("/:id", get(get_prompt))
+    .route("/:id", put(update_prompt))
+    .route("/:id", delete(delete_prompt))
+    .route("/:id/activate", post(activate_prompt))
 }
 
 async fn list_prompts(

@@ -1,5 +1,4 @@
 use axum::{
-    body::Bytes,
     extract::{Query, State, WebSocketUpgrade},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -157,7 +156,7 @@ async fn handle_terminal_socket(
                     // Binary protocol: 0x00 prefix for stdout/stderr data
                     let mut message = vec![0x00u8];
                     message.extend_from_slice(&data);
-                    if socket.send(axum::extract::ws::Message::Binary(Bytes::from(message))).await.is_err() {
+                    if socket.send(axum::extract::ws::Message::Binary(message)).await.is_err() {
                         break;
                     }
                 }

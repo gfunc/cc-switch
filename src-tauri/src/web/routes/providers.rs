@@ -5,6 +5,8 @@ use axum::{
     extract::{State, Path, Query, Multipart},
 };
 use std::sync::Arc;
+use serde::Deserialize;
+use rusqlite::params;
 use crate::web::{
     models::{
         app_state::AppState,
@@ -13,6 +15,20 @@ use crate::web::{
     },
     handlers::ws::WsState,
 };
+
+#[derive(Deserialize)]
+struct CreateProviderRequest {
+    provider: Provider,
+    app: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct UpdateProviderRequest {
+    provider: Provider,
+    app: Option<String>,
+    #[serde(rename = "originalId")]
+    original_id: Option<String>,
+}
 use indexmap::IndexMap;
 use rusqlite::{Connection, Result as SqliteResult};
 use serde_json::json;
@@ -23,17 +39,149 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
     Router::new()
         .route("/", get(list_providers))
         .route("/", post(create_provider))
-        .route("/{id}", get(get_provider))
-        .route("/{id}", put(update_provider))
-        .route("/{id}", delete(delete_provider))
-        .route("/{id}/switch", post(switch_provider))
-        .route("/{id}/endpoints", get(get_custom_endpoints))
-        .route("/{id}/endpoints", post(add_custom_endpoint))
-        .route("/{id}/endpoints/{url}", delete(remove_custom_endpoint))
+        .route("/import-opencode-live", post(import_opencode_live))
+        .route("/opencode-live-ids", get(get_opencode_live_ids))
+        .route("/openclaw-live-ids", get(get_openclaw_live_ids))
+    .route("/:id", get(get_provider))
+    .route("/:id", put(update_provider))
+    .route("/:id", delete(delete_provider))
+    .route("/:id/remove-from-live", post(remove_from_live_config))
+    .route("/:id/switch", post(switch_provider))
+    .route("/:id/endpoints", get(get_custom_endpoints))
+    .route("/:id/endpoints", post(add_custom_endpoint))
+    .route("/:id/endpoints/:url", delete(remove_custom_endpoint))
         .route("/current", get(get_current_provider))
         .route("/sort", post(update_sort_order))
         .route("/import-default", post(import_default_config))
         .route("/import-upload", post(import_from_upload))
+}
+
+async fn import_opencode_live(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<usize>> {
+    let providers = match crate::opencode_config::get_typed_providers() {
+        Ok(v) => v,
+        Err(e) => return Json(ApiResponse::error(format!("Failed to read OpenCode live config: {e}"))),
+    };
+
+    if providers.is_empty() {
+        return Json(ApiResponse::success(0));
+    }
+
+    let result: Result<usize, String> = state.with_db(|db: &Connection| {
+        let mut stmt = db
+            .prepare("SELECT id FROM providers WHERE app_type = 'opencode'")
+            .map_err(|e| e.to_string())?;
+
+        let existing_iter = stmt
+            .query_map([], |row| row.get::<usize, String>(0))
+            .map_err(|e| e.to_string())?;
+
+        let mut existing_ids = std::collections::HashSet::new();
+        for id in existing_iter {
+            if let Ok(v) = id {
+                existing_ids.insert(v);
+            }
+        }
+
+        let mut imported = 0usize;
+        for (id, config) in providers {
+            if existing_ids.contains(&id) {
+                continue;
+            }
+
+            let settings_config = match serde_json::to_value(&config) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            let name = config.name.clone().unwrap_or_else(|| id.clone());
+            let created_at = chrono::Utc::now().timestamp().to_string();
+            let meta = serde_json::json!({ "live_config_managed": true }).to_string();
+
+            db.execute(
+                "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type, is_current)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                [
+                    &id,
+                    &name,
+                    &serde_json::to_string(&settings_config).unwrap_or_default(),
+                    "",
+                    "custom",
+                    &created_at,
+                    "0",
+                    "Imported from OpenCode live config",
+                    "0",
+                    &meta,
+                    "",
+                    "",
+                    "0",
+                    "opencode",
+                    "0",
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+
+            imported += 1;
+        }
+
+        Ok(imported)
+    });
+
+    match result {
+        Ok(imported) => {
+            if imported > 0 {
+                crate::web::handlers::ws::broadcast_event(
+                    &ws_state,
+                    "provider.imported",
+                    json!({ "app": "opencode" }),
+                );
+            }
+            Json(ApiResponse::success(imported))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Failed to import OpenCode providers: {e}"))),
+    }
+}
+
+async fn get_opencode_live_ids() -> Json<ApiResponse<Vec<String>>> {
+    match crate::opencode_config::get_typed_providers() {
+        Ok(providers) => Json(ApiResponse::success(
+            providers.into_iter().map(|(id, _)| id).collect(),
+        )),
+        Err(e) => Json(ApiResponse::error(format!("Failed to read OpenCode live ids: {e}"))),
+    }
+}
+
+async fn get_openclaw_live_ids() -> Json<ApiResponse<Vec<String>>> {
+    match crate::openclaw_config::get_typed_providers() {
+        Ok(providers) => Json(ApiResponse::success(
+            providers.into_iter().map(|(id, _)| id).collect(),
+        )),
+        Err(e) => Json(ApiResponse::error(format!("Failed to read OpenClaw live ids: {e}"))),
+    }
+}
+
+async fn remove_from_live_config(
+    Path(id): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Json<ApiResponse<bool>> {
+    let app = payload
+        .get("app")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    let result = match app {
+        "opencode" => crate::opencode_config::remove_provider(&id).map(|_| true),
+        "openclaw" => crate::openclaw_config::remove_provider(&id).map(|_| true),
+        _ => Err(crate::error::AppError::Config(format!(
+            "remove-from-live not supported for app: {app}"
+        ))),
+    };
+
+    match result {
+        Ok(_) => Json(ApiResponse::success(true)),
+        Err(e) => Json(ApiResponse::error(format!("Failed to remove provider from live config: {e}"))),
+    }
 }
 
 async fn import_from_upload(
@@ -187,39 +335,47 @@ async fn import_from_upload(
 async fn import_default_config(
     State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
     Query(params): Query<std::collections::HashMap<String, String>>,
+    body: Option<Json<serde_json::Value>>,
 ) -> Json<ApiResponse<bool>> {
-    let app = params.get("app").cloned().unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
-    
+    let body_app = body
+        .as_ref()
+        .and_then(|Json(v)| v.get("app").and_then(|x| x.as_str()))
+        .map(|s| s.to_string());
+
+    let app = params
+        .get("app")
+        .cloned()
+        .or(body_app)
+        .unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
+
     // Read config from remote server's filesystem
     let settings_config = match app.as_str() {
         "claude" => {
             let settings_path = dirs::home_dir()
                 .map(|h| h.join(".claude/settings.json"))
                 .filter(|p| p.exists());
-            
+
             match settings_path {
-                Some(path) => {
-                    match tokio::fs::read_to_string(&path).await {
-                        Ok(content) => {
-                            match serde_json::from_str::<serde_json::Value>(&content) {
-                                Ok(v) => v,
-                                Err(e) => {
-                                    return Json(ApiResponse::error(format!(
-                                        "Failed to parse Claude settings.json: {}", e
-                                    )));
-                                }
-                            }
-                        }
+                Some(path) => match tokio::fs::read_to_string(&path).await {
+                    Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
+                        Ok(v) => v,
                         Err(e) => {
                             return Json(ApiResponse::error(format!(
-                                "Failed to read Claude settings.json: {}", e
+                                "Failed to parse Claude settings.json: {}",
+                                e
                             )));
                         }
+                    },
+                    Err(e) => {
+                        return Json(ApiResponse::error(format!(
+                            "Failed to read Claude settings.json: {}",
+                            e
+                        )));
                     }
-                }
+                },
                 None => {
                     return Json(ApiResponse::error(
-                        "Claude settings.json not found at ~/.claude/settings.json".to_string()
+                        "Claude settings.json not found at ~/.claude/settings.json".to_string(),
                     ));
                 }
             }
@@ -228,30 +384,28 @@ async fn import_default_config(
             let auth_path = dirs::home_dir()
                 .map(|h| h.join(".codex/auth.json"))
                 .filter(|p| p.exists());
-            
+
             match auth_path {
-                Some(path) => {
-                    match tokio::fs::read_to_string(&path).await {
-                        Ok(content) => {
-                            match serde_json::from_str::<serde_json::Value>(&content) {
-                                Ok(auth) => serde_json::json!({ "auth": auth, "config": "" }),
-                                Err(e) => {
-                                    return Json(ApiResponse::error(format!(
-                                        "Failed to parse Codex auth.json: {}", e
-                                    )));
-                                }
-                            }
-                        }
+                Some(path) => match tokio::fs::read_to_string(&path).await {
+                    Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
+                        Ok(auth) => serde_json::json!({ "auth": auth, "config": "" }),
                         Err(e) => {
                             return Json(ApiResponse::error(format!(
-                                "Failed to read Codex auth.json: {}", e
+                                "Failed to parse Codex auth.json: {}",
+                                e
                             )));
                         }
+                    },
+                    Err(e) => {
+                        return Json(ApiResponse::error(format!(
+                            "Failed to read Codex auth.json: {}",
+                            e
+                        )));
                     }
-                }
+                },
                 None => {
                     return Json(ApiResponse::error(
-                        "Codex auth.json not found at ~/.codex/auth.json".to_string()
+                        "Codex auth.json not found at ~/.codex/auth.json".to_string(),
                     ));
                 }
             }
@@ -260,8 +414,7 @@ async fn import_default_config(
             let home = dirs::home_dir();
             let env_path = home.as_ref().map(|h| h.join(".gemini/.env"));
             let settings_path = home.as_ref().map(|h| h.join(".gemini/settings.json"));
-            
-            // Read .env file
+
             let env_data = if let Some(ref path) = env_path {
                 if path.exists() {
                     tokio::fs::read_to_string(path).await.ok()
@@ -271,11 +424,12 @@ async fn import_default_config(
             } else {
                 None
             };
-            
-            // Read settings.json
+
             let settings_data = if let Some(ref path) = settings_path {
                 if path.exists() {
-                    tokio::fs::read_to_string(path).await.ok()
+                    tokio::fs::read_to_string(path)
+                        .await
+                        .ok()
                         .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
                 } else {
                     None
@@ -283,14 +437,14 @@ async fn import_default_config(
             } else {
                 None
             };
-            
+
             if env_data.is_none() && settings_data.is_none() {
                 return Json(ApiResponse::error(
-                    "Gemini config not found at ~/.gemini/.env or ~/.gemini/settings.json".to_string()
+                    "Gemini config not found at ~/.gemini/.env or ~/.gemini/settings.json"
+                        .to_string(),
                 ));
             }
-            
-            // Parse .env if present
+
             let env_obj = if let Some(content) = env_data {
                 let mut env_map = serde_json::Map::new();
                 for line in content.lines() {
@@ -301,7 +455,7 @@ async fn import_default_config(
                     if let Some((key, value)) = line.split_once('=') {
                         env_map.insert(
                             key.trim().to_string(),
-                            serde_json::Value::String(value.trim().to_string())
+                            serde_json::Value::String(value.trim().to_string()),
                         );
                     }
                 }
@@ -309,38 +463,35 @@ async fn import_default_config(
             } else {
                 serde_json::json!({})
             };
-            
+
             serde_json::json!({
                 "env": env_obj,
                 "config": settings_data.unwrap_or_else(|| serde_json::json!({}))
             })
         }
         _ => {
-            return Json(ApiResponse::error(format!(
-                "Unsupported app type: {}", app
-            )));
+            return Json(ApiResponse::error(format!("Unsupported app type: {}", app)));
         }
     };
-    
-    // Create provider from config
+
     let result: Result<bool, String> = state.with_db(|db: &Connection| {
-        // Check if providers already exist
-        let mut stmt = db.prepare(
-            "SELECT COUNT(*) FROM providers WHERE app_type = ?1"
-        ).map_err(|e| e.to_string())?;
-        
-        let count: i64 = stmt.query_row([&app], |row| row.get(0))
+        let mut stmt = db
+            .prepare("SELECT COUNT(*) FROM providers WHERE app_type = ?1")
             .map_err(|e| e.to_string())?;
-        
+
+        let count: i64 = stmt
+            .query_row([&app], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+
         if count > 0 {
-            return Ok(false); // Providers already exist
+            return Ok(false); // Do not fail hard when providers already exist
         }
-        
-        let provider_id = format!("default");
+
+        let provider_id = "default".to_string();
         let provider_name = format!("Default {} Config", app);
-        
+
         db.execute(
-            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type) 
+            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             [
                 &provider_id,
@@ -357,32 +508,29 @@ async fn import_default_config(
                 "",
                 "0",
                 &app,
-            ]
-        ).map_err(|e| e.to_string())?;
-        
-        // Set as current provider
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
         db.execute(
             "UPDATE providers SET is_current = 1 WHERE id = ?1 AND app_type = ?2",
-            [&provider_id, &app]
-        ).map_err(|e| e.to_string())?;
-        
+            [&provider_id, &app],
+        )
+        .map_err(|e| e.to_string())?;
+
         Ok(true)
     });
-    
+
     match result {
         Ok(true) => {
             crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.imported",
-                json!({ "app": app })
+                json!({ "app": app }),
             );
             Json(ApiResponse::success(true))
         }
-        Ok(false) => {
-            Json(ApiResponse::error(
-                "Providers already exist for this app. Delete existing providers first to import.".to_string()
-            ))
-        }
+        Ok(false) => Json(ApiResponse::success(false)),
         Err(e) => Json(ApiResponse::error(format!("Failed to import provider: {}", e))),
     }
 }
@@ -460,30 +608,34 @@ async fn get_provider(
 
 async fn create_provider(
     State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
-    Json(provider): Json<Provider>,
+    Json(req): Json<CreateProviderRequest>,
 ) -> Json<ApiResponse<String>> {
+    let app_type = req.app.as_deref().unwrap_or(DEFAULT_APP_TYPE).to_string();
+    let provider = req.provider;
     let result: Result<(), String> = state.with_db(|db: &Connection| {
-        let is_partner_str: String = provider.is_partner.map(|b| if b { "1".to_string() } else { "0".to_string() }).unwrap_or_default();
-        let in_failover_str: String = provider.in_failover_queue.map(|b| if b { "1".to_string() } else { "0".to_string() }).unwrap_or_default();
-        
+        let created_at = provider.created_at.unwrap_or_else(|| chrono::Utc::now().timestamp_millis());
+        let sort_index = provider.sort_index;
+        let is_partner: i32 = if provider.is_partner.unwrap_or(false) { 1 } else { 0 };
+        let in_failover: i32 = if provider.in_failover_queue.unwrap_or(false) { 1 } else { 0 };
+
         db.execute(
-            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type) 
+            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
-            [
-                &provider.id,
-                &provider.name,
-                &serde_json::to_string(&provider.settings_config).unwrap_or_default(),
-                &provider.website_url.unwrap_or_default(),
-                &provider.category.unwrap_or_default(),
-                &provider.created_at.map(|t| t.to_string()).unwrap_or_default(),
-                &provider.sort_index.map(|i| i.to_string()).unwrap_or_default(),
-                &provider.notes.unwrap_or_default(),
-                &is_partner_str,
-                &serde_json::to_string(&provider.meta).unwrap_or_default(),
-                &provider.icon.unwrap_or_default(),
-                &provider.icon_color.unwrap_or_default(),
-                &in_failover_str,
-                &DEFAULT_APP_TYPE.to_string(),
+            params![
+                provider.id,
+                provider.name,
+                serde_json::to_string(&provider.settings_config).unwrap_or_default(),
+                provider.website_url.unwrap_or_default(),
+                provider.category.unwrap_or_default(),
+                created_at,
+                sort_index,
+                provider.notes.unwrap_or_default(),
+                is_partner,
+                serde_json::to_string(&provider.meta).unwrap_or_default(),
+                provider.icon.unwrap_or_default(),
+                provider.icon_color.unwrap_or_default(),
+                in_failover,
+                app_type,
             ]
         ).map_err(|e| e.to_string())?;
         
@@ -495,7 +647,7 @@ async fn create_provider(
             crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.created",
-                json!({ "id": provider.id })
+                json!({ "id": provider.id, "app": app_type })
             );
             Json(ApiResponse::success(provider.id))
         }
@@ -506,43 +658,49 @@ async fn create_provider(
 async fn update_provider(
     State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
     Path(id): Path<String>,
-    Json(provider): Json<Provider>,
+    Json(req): Json<UpdateProviderRequest>,
 ) -> Json<ApiResponse<bool>> {
+    let app_type = req.app.as_deref().unwrap_or(DEFAULT_APP_TYPE).to_string();
+    let provider = req.provider;
+    let original_id = req.original_id.unwrap_or(id.clone());
+    let updated_id = provider.id.clone();
     let result: Result<(), String> = state.with_db(|db: &Connection| {
-        let is_partner_str: String = provider.is_partner.map(|b| if b { "1".to_string() } else { "0".to_string() }).unwrap_or_default();
-        let in_failover_str: String = provider.in_failover_queue.map(|b| if b { "1".to_string() } else { "0".to_string() }).unwrap_or_default();
-        
+        let sort_index = provider.sort_index;
+        let is_partner: i32 = if provider.is_partner.unwrap_or(false) { 1 } else { 0 };
+        let in_failover: i32 = if provider.in_failover_queue.unwrap_or(false) { 1 } else { 0 };
+
         db.execute(
-            "UPDATE providers SET 
-                name = ?2, settings_config = ?3, website_url = ?4, category = ?5, 
-                sort_index = ?6, notes = ?7, is_partner = ?8, meta = ?9, 
-                icon = ?10, icon_color = ?11, in_failover_queue = ?12 
-             WHERE id = ?1",
-            [
-                &id,
-                &provider.name,
-                &serde_json::to_string(&provider.settings_config).unwrap_or_default(),
-                &provider.website_url.unwrap_or_default(),
-                &provider.category.unwrap_or_default(),
-                &provider.sort_index.map(|i| i.to_string()).unwrap_or_default(),
-                &provider.notes.unwrap_or_default(),
-                &is_partner_str,
-                &serde_json::to_string(&provider.meta).unwrap_or_default(),
-                &provider.icon.unwrap_or_default(),
-                &provider.icon_color.unwrap_or_default(),
-                &in_failover_str,
+            "UPDATE providers SET
+                name = ?2, settings_config = ?3, website_url = ?4, category = ?5,
+                sort_index = ?6, notes = ?7, is_partner = ?8, meta = ?9,
+                icon = ?10, icon_color = ?11, in_failover_queue = ?12
+             WHERE id = ?1 AND app_type = ?13",
+            params![
+                original_id,
+                provider.name,
+                serde_json::to_string(&provider.settings_config).unwrap_or_default(),
+                provider.website_url.unwrap_or_default(),
+                provider.category.unwrap_or_default(),
+                sort_index,
+                provider.notes.unwrap_or_default(),
+                is_partner,
+                serde_json::to_string(&provider.meta).unwrap_or_default(),
+                provider.icon.unwrap_or_default(),
+                provider.icon_color.unwrap_or_default(),
+                in_failover,
+                app_type,
             ]
         ).map_err(|e| e.to_string())?;
-        
+
         Ok(())
     });
-    
+
     match result {
         Ok(_) => {
             crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.updated",
-                json!({ "id": id })
+                json!({ "id": updated_id, "previousId": original_id, "app": app_type })
             );
             Json(ApiResponse::success(true))
         }
