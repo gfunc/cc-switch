@@ -7,6 +7,8 @@ use axum::{
 use std::sync::Arc;
 use serde::Deserialize;
 use rusqlite::params;
+use std::str::FromStr;
+use crate::app_config::AppType;
 use crate::web::{
     models::{
         app_state::AppState,
@@ -31,7 +33,7 @@ struct UpdateProviderRequest {
 }
 use indexmap::IndexMap;
 use rusqlite::{Connection, Result as SqliteResult};
-use serde_json::json;
+use serde_json::{json, Value};
 
 const DEFAULT_APP_TYPE: &str = "claude";
 
@@ -697,6 +699,13 @@ async fn update_provider(
 
     match result {
         Ok(_) => {
+            if let Err(e) = sync_updated_provider_runtime_state(&state, &app_type, &updated_id) {
+                return Json(ApiResponse::error(format!(
+                    "Saved in database but failed to sync runtime config: {}",
+                    e
+                )));
+            }
+
             crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.updated",
@@ -706,6 +715,76 @@ async fn update_provider(
         }
         Err(e) => Json(ApiResponse::error(format!("Failed to update provider: {}", e))),
     }
+}
+
+fn sync_updated_provider_runtime_state(
+    state: &AppState,
+    app: &str,
+    provider_id: &str,
+) -> Result<(), String> {
+    let app_type = AppType::from_str(app).map_err(|e| e.to_string())?;
+
+    let current_settings = state.with_db(|db: &Connection| {
+        let mut stmt = db
+            .prepare(
+                "SELECT settings_config FROM providers WHERE id = ?1 AND app_type = ?2 AND is_current = 1",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let config_str: Option<String> = stmt
+            .query_row([provider_id, app], |row| row.get(0))
+            .ok();
+
+        let Some(config_str) = config_str else {
+            return Ok(None);
+        };
+
+        let settings = serde_json::from_str::<Value>(&config_str).map_err(|e| e.to_string())?;
+        Ok(Some(settings))
+    })?;
+
+    let Some(settings) = current_settings else {
+        // Edited provider is not currently active; DB-only update is expected.
+        return Ok(());
+    };
+
+    match app_type {
+        AppType::Claude => {
+            let sanitized = crate::services::provider::sanitize_claude_settings_for_live(&settings);
+            let path = crate::config::get_claude_settings_path();
+            crate::config::write_json_file(&path, &sanitized).map_err(|e| e.to_string())?;
+        }
+        AppType::Codex => {
+            let settings_obj = settings
+                .as_object()
+                .ok_or_else(|| "Codex settings_config must be an object".to_string())?;
+            let auth = settings_obj
+                .get("auth")
+                .ok_or_else(|| "Codex settings_config.auth is missing".to_string())?;
+            let config_text = settings_obj.get("config").and_then(|v| v.as_str());
+            crate::codex_config::write_codex_live_atomic(auth, config_text)
+                .map_err(|e| e.to_string())?;
+        }
+        AppType::Gemini => {
+            let env_map = crate::gemini_config::json_to_env(&settings).map_err(|e| e.to_string())?;
+            crate::gemini_config::write_gemini_env_atomic(&env_map).map_err(|e| e.to_string())?;
+
+            if let Some(config_value) = settings.get("config") {
+                if config_value.is_object() {
+                    let settings_path = crate::gemini_config::get_gemini_settings_path();
+                    crate::config::write_json_file(&settings_path, config_value)
+                        .map_err(|e| e.to_string())?;
+                } else if !config_value.is_null() {
+                    return Err("Gemini settings_config.config must be object or null".to_string());
+                }
+            }
+        }
+        AppType::OpenCode | AppType::OpenClaw => {
+            // Additive-mode apps are managed in their own live files and don't have exclusive "current" live overwrite.
+        }
+    }
+
+    Ok(())
 }
 
 async fn delete_provider(
@@ -737,10 +816,10 @@ async fn switch_provider(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<bool>> {
     let app = params.get("app").cloned().unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
-    
+
     let result: Result<(), String> = state.with_db(|db: &Connection| {
         db.execute("BEGIN TRANSACTION", []).ok();
-        
+
         let res: Result<usize, rusqlite::Error> = db.execute(
             "UPDATE providers SET is_current = 0 WHERE app_type = ?1",
             [&app
@@ -752,7 +831,7 @@ async fn switch_provider(
                 ]
             )
         });
-        
+
         match res {
             Ok(_) => {
                 db.execute("COMMIT", []).ok();
@@ -764,9 +843,16 @@ async fn switch_provider(
             }
         }
     });
-    
+
     match result {
         Ok(_) => {
+            if let Err(e) = sync_switched_provider_runtime_state(&state, &app, &id) {
+                return Json(ApiResponse::error(format!(
+                    "Switched in database but failed to sync runtime config: {}",
+                    e
+                )));
+            }
+
             crate::web::handlers::ws::broadcast_event(
                 &ws_state,
                 "provider.switched",
@@ -776,6 +862,38 @@ async fn switch_provider(
         }
         Err(e) => Json(ApiResponse::error(format!("Failed to switch provider: {}", e))),
     }
+}
+
+fn sync_switched_provider_runtime_state(
+    state: &AppState,
+    app: &str,
+    provider_id: &str,
+) -> Result<(), String> {
+    let app_type = AppType::from_str(app).map_err(|e| e.to_string())?;
+
+    // Keep device-level current provider in sync with DB selection.
+    crate::settings::set_current_provider(&app_type, Some(provider_id)).map_err(|e| e.to_string())?;
+
+    // In web/api-only mode, Claude switch must also write live settings immediately.
+    if app_type == AppType::Claude {
+        let settings_config = state.with_db(|db: &Connection| {
+            let mut stmt = db
+                .prepare("SELECT settings_config FROM providers WHERE id = ?1 AND app_type = ?2")
+                .map_err(|e| e.to_string())?;
+
+            let config_str: String = stmt
+                .query_row([provider_id, app], |row| row.get(0))
+                .map_err(|e| e.to_string())?;
+
+            serde_json::from_str::<serde_json::Value>(&config_str).map_err(|e| e.to_string())
+        })?;
+
+        let sanitized = crate::services::provider::sanitize_claude_settings_for_live(&settings_config);
+        let path = crate::config::get_claude_settings_path();
+        crate::config::write_json_file(&path, &sanitized).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 async fn get_current_provider(
