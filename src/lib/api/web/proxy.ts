@@ -13,6 +13,10 @@ export const proxyApi = {
     return post("/proxy/start", {});
   },
 
+  async stopProxyServer(): Promise<void> {
+    await post("/proxy/stop", {});
+  },
+
   async stopProxyWithRestore(): Promise<void> {
     await post("/proxy/stop", {});
   },

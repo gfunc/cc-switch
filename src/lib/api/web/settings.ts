@@ -75,6 +75,10 @@ export const settingsApi = {
     return defaultPath || null;
   },
 
+  async pickDirectory(defaultPath?: string): Promise<string | null> {
+    return this.selectConfigDirectory(defaultPath);
+  },
+
   async getClaudeCodeConfigPath(): Promise<string> {
     const response = await get<{ path: string }>("/settings/claude-code-path");
     return response.path;
@@ -220,5 +224,27 @@ export const settingsApi = {
         callback(data.data);
       }
     });
+  },
+
+  async probeToolInstallations(): Promise<
+    Array<{
+      name: string;
+      version: string | null;
+      latest_version: string | null;
+      error: string | null;
+      installed_but_broken: boolean;
+      env_type: string | null;
+      wsl_distro: string | null;
+    }>
+  > {
+    return get("/settings/probe-tool-installations");
+  },
+
+  async runToolLifecycleAction(
+    _toolName: string,
+    _action: "install" | "upgrade" | "uninstall",
+  ): Promise<{ success: boolean; message?: string }> {
+    console.warn("runToolLifecycleAction not available in web mode");
+    return { success: false, message: "Not available in web mode" };
   },
 };

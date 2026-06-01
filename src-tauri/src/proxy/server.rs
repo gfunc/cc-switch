@@ -9,13 +9,18 @@
 //! a direct (non-proxied) CLI request.
 
 use super::{
-    failover_switch::FailoverSwitchManager, handlers, log_codes::srv as log_srv,
-    provider_router::ProviderRouter, types::*, ProxyError,
+    failover_switch::FailoverSwitchManager,
+    handlers,
+    log_codes::srv as log_srv,
+    provider_router::ProviderRouter,
+    providers::{codex_chat_history::CodexChatHistoryStore, gemini_shadow::GeminiShadowStore},
+    types::*,
+    ProxyError,
 };
 use crate::database::Database;
 use axum::{
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{any, get, post},
     Router,
 };
 use hyper_util::rt::TokioIo;
@@ -23,7 +28,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
-use tower_http::cors::{Any, CorsLayer};
 
 /// 代理服务器状态（共享）
 #[derive(Clone)]
@@ -36,6 +40,10 @@ pub struct ProxyState {
     pub current_providers: Arc<RwLock<std::collections::HashMap<String, (String, String)>>>,
     /// 共享的 ProviderRouter（持有熔断器状态，跨请求保持）
     pub provider_router: Arc<ProviderRouter>,
+    /// Gemini Native shadow state，用于 thoughtSignature / tool call 回放
+    pub gemini_shadow: Arc<GeminiShadowStore>,
+    /// Codex Chat bridge history，用于恢复 previous_response_id 指向的 tool call
+    pub codex_chat_history: Arc<CodexChatHistoryStore>,
     /// AppHandle，用于发射事件和更新托盘菜单
     pub app_handle: Option<tauri::AppHandle>,
     /// 故障转移切换管理器
@@ -69,6 +77,8 @@ impl ProxyServer {
             start_time: Arc::new(RwLock::new(None)),
             current_providers: Arc::new(RwLock::new(std::collections::HashMap::new())),
             provider_router,
+            gemini_shadow: Arc::new(GeminiShadowStore::default()),
+            codex_chat_history: Arc::new(CodexChatHistoryStore::default()),
             app_handle,
             failover_manager,
         };
@@ -275,11 +285,6 @@ impl ProxyServer {
     }
 
     fn build_router(&self) -> Router {
-        let cors = CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any);
-
         Router::new()
             // 健康检查
             .route("/health", get(handlers::health_check))
@@ -287,6 +292,15 @@ impl ProxyServer {
             // Claude API (支持带前缀和不带前缀两种格式)
             .route("/v1/messages", post(handlers::handle_messages))
             .route("/claude/v1/messages", post(handlers::handle_messages))
+            // Claude Desktop 3P 本地 gateway（独立 provider namespace）
+            .route(
+                "/claude-desktop/v1/models",
+                get(handlers::handle_claude_desktop_models),
+            )
+            .route(
+                "/claude-desktop/v1/messages",
+                post(handlers::handle_claude_desktop_messages),
+            )
             // OpenAI Chat Completions API (Codex CLI，支持带前缀和不带前缀)
             .route("/chat/completions", post(handlers::handle_chat_completions))
             .route(
@@ -324,11 +338,17 @@ impl ProxyServer {
                 post(handlers::handle_responses_compact),
             )
             // Gemini API (支持带前缀和不带前缀)
-            .route("/v1beta/*path", post(handlers::handle_gemini))
-            .route("/gemini/v1beta/*path", post(handlers::handle_gemini))
+            //
+            // 用 `any(..)` 覆盖所有 HTTP 方法：除了 POST `:generateContent` /
+            // `:streamGenerateContent` / `:countTokens` 之外，Gemini SDK / CLI 还会发
+            // GET `/models`、GET `/models/<id>` 等只读端点。如果只挂 POST，这些 GET
+            // 请求会在路由层 404，绕过本地代理的统计、整流和故障转移。
+            .route("/v1beta/*path", any(handlers::handle_gemini))
+            .route("/gemini/v1beta/*path", any(handlers::handle_gemini))
+            // Gemini 的 GA 版本也叫 /v1，给原 SDK 留一条出口
+            .route("/gemini/v1/*path", any(handlers::handle_gemini))
             // 提高默认请求体大小限制（避免 413 Payload Too Large）
             .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
-            .layer(cors)
             .with_state(self.state.clone())
     }
 
@@ -345,6 +365,17 @@ impl ProxyServer {
         config: super::circuit_breaker::CircuitBreakerConfig,
     ) {
         self.state.provider_router.update_all_configs(config).await;
+    }
+
+    pub async fn update_circuit_breaker_config_for_app(
+        &self,
+        app_type: &str,
+        config: super::circuit_breaker::CircuitBreakerConfig,
+    ) {
+        self.state
+            .provider_router
+            .update_app_configs(app_type, config)
+            .await;
     }
 
     /// 重置指定 Provider 的熔断器

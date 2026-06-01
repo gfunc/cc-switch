@@ -233,8 +233,10 @@ describe("App integration with MSW", () => {
       ),
     );
 
-    // Wait for async event listener to be set up
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(() => {
+      emitTauriEvent("webdav-sync-status-updated", null);
+    }).not.toThrow();
+    expect(toastErrorMock).not.toHaveBeenCalled();
 
     emitTauriEvent("webdav-sync-status-updated", {
       source: "auto",

@@ -28,6 +28,7 @@ import * as webConfigApi from "./web/config";
 export type { AppId } from "./types";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
+export type { GitHubAccount } from "./copilot";
 export type {
   ManagedAuthProvider,
   ManagedAuthStatus,

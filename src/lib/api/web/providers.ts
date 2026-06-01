@@ -5,6 +5,7 @@ import type {
   UniversalProvidersMap,
 } from "@/types";
 import type { AppId } from "./types";
+import type { ClaudeDesktopStatus } from "../providers";
 
 export interface ProviderSortUpdate {
   id: string;
@@ -80,7 +81,11 @@ export const providersApi = {
     });
   },
 
-  async openTerminal(_providerId: string, _appId: AppId): Promise<boolean> {
+  async openTerminal(
+    _providerId: string,
+    _appId: AppId,
+    _options?: { cwd?: string },
+  ): Promise<boolean> {
     console.warn("open_provider_terminal not available in web mode");
     return false;
   },
@@ -95,6 +100,30 @@ export const providersApi = {
 
   async getOpenClawLiveProviderIds(): Promise<string[]> {
     return get("/providers/openclaw-live-ids");
+  },
+
+  async getHermesLiveProviderIds(): Promise<string[]> {
+    return get("/providers/hermes-live-ids");
+  },
+
+  async getClaudeDesktopStatus(): Promise<ClaudeDesktopStatus> {
+    return get("/providers/claude-desktop-status");
+  },
+
+  async importOpenClawFromLive(): Promise<number> {
+    return post("/providers/import-openclaw-live", {});
+  },
+
+  async importHermesFromLive(): Promise<number> {
+    return post("/providers/import-hermes-live", {});
+  },
+
+  async importClaudeDesktopFromClaude(): Promise<number> {
+    return post("/providers/import-claude-desktop-from-claude", {});
+  },
+
+  async ensureClaudeDesktopOfficialProvider(): Promise<boolean> {
+    return post("/providers/ensure-claude-desktop-official", {});
   },
 };
 
