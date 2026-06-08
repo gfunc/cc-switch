@@ -1,4 +1,4 @@
-FROM node:20-bookworm AS web-builder
+FROM node:22-bookworm AS web-builder
 
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
 
