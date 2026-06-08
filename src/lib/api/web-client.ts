@@ -76,7 +76,7 @@ async function parseApiEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> 
 }
 
 export async function get<T>(url: string): Promise<T> {
-  const response = await fetchWithAuth(url);
+  const response = await fetchWithAuth(url, { method: "GET" });
   const data = await parseApiEnvelope<T>(response);
   return data.data;
 }
