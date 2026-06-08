@@ -724,7 +724,7 @@ fn sync_updated_provider_runtime_state(
 ) -> Result<(), String> {
     let app_type = AppType::from_str(app).map_err(|e| e.to_string())?;
 
-    let current_settings = state.with_db(|db: &Connection| {
+    let current_settings = state.with_db(|db: &Connection| -> Result<Option<Value>, String> {
         let mut stmt = db
             .prepare(
                 "SELECT settings_config FROM providers WHERE id = ?1 AND app_type = ?2 AND is_current = 1",
@@ -779,8 +779,11 @@ fn sync_updated_provider_runtime_state(
                 }
             }
         }
-        AppType::OpenCode | AppType::OpenClaw => {
+        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => {
             // Additive-mode apps are managed in their own live files and don't have exclusive "current" live overwrite.
+        }
+        AppType::ClaudeDesktop => {
+            // Web mode keeps the provider record in sync, but does not rewrite the local Claude Desktop profile here.
         }
     }
 
