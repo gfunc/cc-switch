@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authApi } from "@/lib/api";
-import { setAuthToken } from "@/lib/api/web-client";
+import { post, setAuthToken } from "@/lib/api/web-client";
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -63,21 +63,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/verify`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token: token.trim() }),
-        },
-      );
+      const { valid } = await post<{ valid: boolean }>("/auth/verify", { token: token.trim() });
 
-      const data = await response.json();
-
-      if (!data.success || !data.data?.valid) {
-        throw new Error(data.error || "Invalid token");
+      if (!valid) {
+        throw new Error("Invalid token");
       }
 
       setAuthToken(token.trim());
