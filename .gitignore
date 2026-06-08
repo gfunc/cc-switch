@@ -25,6 +25,12 @@ flatpak/cc-switch.deb
 flatpak-build/
 flatpak-repo/
 
+# pnpm artifacts
+.pnpm-store/
+
+# Playwright test results
+test-results/
+
 .playwright-cli
 .worktrees/
 .spec-workflow/
