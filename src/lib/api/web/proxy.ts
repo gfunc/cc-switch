@@ -1,4 +1,4 @@
-import { get, post } from "../web-client";
+import { get, post, put } from "../web-client";
 import type {
   ProxyConfig,
   ProxyStatus,
@@ -18,7 +18,7 @@ export const proxyApi = {
   },
 
   async stopProxyWithRestore(): Promise<void> {
-    await post("/proxy/stop", {});
+    await post("/proxy/stop-with-restore", {});
   },
 
   async getProxyStatus(): Promise<ProxyStatus> {
@@ -36,10 +36,10 @@ export const proxyApi = {
   },
 
   async switchProxyProvider(
-    _appType: string,
-    _providerId: string,
+    appType: string,
+    providerId: string,
   ): Promise<void> {
-    console.warn("switch_proxy_provider not available in web mode");
+    await post("/proxy/switch", { appType, providerId });
   },
 
   async getProxyTakeoverStatus(): Promise<ProxyTakeoverStatus> {
@@ -77,22 +77,26 @@ export const proxyApi = {
     await post(`/proxy/config/app?app=${config.appType}`, config);
   },
 
-  async getDefaultCostMultiplier(_appType: string): Promise<string> {
-    return "1.0";
+  async getDefaultCostMultiplier(appType: string): Promise<string> {
+    return get(`/proxy/default-cost-multiplier?app=${encodeURIComponent(appType)}`);
   },
 
   async setDefaultCostMultiplier(
-    _appType: string,
-    _value: string,
+    appType: string,
+    value: string,
   ): Promise<void> {
-    console.warn("set_default_cost_multiplier not available in web mode");
+    await put(`/proxy/default-cost-multiplier?app=${encodeURIComponent(appType)}`, {
+      value,
+    });
   },
 
-  async getPricingModelSource(_appType: string): Promise<string> {
-    return "default";
+  async getPricingModelSource(appType: string): Promise<string> {
+    return get(`/proxy/pricing-model-source?app=${encodeURIComponent(appType)}`);
   },
 
-  async setPricingModelSource(_appType: string, _value: string): Promise<void> {
-    console.warn("set_pricing_model_source not available in web mode");
+  async setPricingModelSource(appType: string, value: string): Promise<void> {
+    await put(`/proxy/pricing-model-source?app=${encodeURIComponent(appType)}`, {
+      value,
+    });
   },
 };
