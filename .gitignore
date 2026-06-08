@@ -26,6 +26,7 @@ src-tauri/web-dist/
 flatpak/cc-switch.deb
 flatpak-build/
 flatpak-repo/
+.pnpm-store/
 .worktrees/
 .spec-workflow/
 copilot-api
