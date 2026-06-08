@@ -1,6 +1,7 @@
 import { get, post, put, del, connectWebSocket } from "../web-client";
 import type { Settings, WebDavSyncSettings, RemoteSnapshotInfo } from "@/types";
 import type { AppId } from "./types";
+import type { BackupEntry, ToolInstallationReport } from "../settings";
 
 export interface ConfigTransferResult {
   success: boolean;
@@ -189,15 +190,27 @@ export const settingsApi = {
     return false;
   },
 
-  async getToolVersions(): Promise<
+  async getToolVersions(
+    tools?: string[],
+    wslShellByTool?: Record<
+      string,
+      { wslShell?: string | null; wslShellFlag?: string | null }
+    >,
+  ): Promise<
     Array<{
       name: string;
       version: string | null;
       latest_version: string | null;
       error: string | null;
+      installed_but_broken: boolean;
+      env_type: "windows" | "wsl" | "macos" | "linux" | "unknown";
+      wsl_distro: string | null;
     }>
   > {
-    return get("/settings/tool-versions");
+    const query = tools?.length
+      ? `?tools=${encodeURIComponent(tools.join(","))}`
+      : "";
+    return post(`/settings/tool-versions${query}`, { tools, wslShellByTool });
   },
 
   async getRectifierConfig(): Promise<RectifierConfig> {
@@ -226,25 +239,44 @@ export const settingsApi = {
     });
   },
 
-  async probeToolInstallations(): Promise<
-    Array<{
-      name: string;
-      version: string | null;
-      latest_version: string | null;
-      error: string | null;
-      installed_but_broken: boolean;
-      env_type: string | null;
-      wsl_distro: string | null;
-    }>
-  > {
-    return get("/settings/probe-tool-installations");
+  async probeToolInstallations(
+    tools: string[],
+  ): Promise<ToolInstallationReport[]> {
+    return post("/settings/probe-tool-installations", { tools });
   },
 
   async runToolLifecycleAction(
-    _toolName: string,
-    _action: "install" | "upgrade" | "uninstall",
-  ): Promise<{ success: boolean; message?: string }> {
-    console.warn("runToolLifecycleAction not available in web mode");
-    return { success: false, message: "Not available in web mode" };
+    tools: string[],
+    action: "install" | "update",
+    wslShellByTool?: Record<
+      string,
+      { wslShell?: string | null; wslShellFlag?: string | null }
+    >,
+  ): Promise<void> {
+    await post("/settings/tool-lifecycle", { tools, action, wslShellByTool });
+  },
+};
+
+export const backupsApi = {
+  async createDbBackup(): Promise<string> {
+    return post("/settings/backups", {});
+  },
+
+  async listDbBackups(): Promise<BackupEntry[]> {
+    return get("/settings/backups");
+  },
+
+  async restoreDbBackup(filename: string): Promise<string> {
+    return post(`/settings/backups/${encodeURIComponent(filename)}/restore`, {});
+  },
+
+  async renameDbBackup(oldFilename: string, newName: string): Promise<string> {
+    return put(`/settings/backups/${encodeURIComponent(oldFilename)}`, {
+      newName,
+    });
+  },
+
+  async deleteDbBackup(filename: string): Promise<void> {
+    await del(`/settings/backups/${encodeURIComponent(filename)}`);
   },
 };

@@ -5,7 +5,7 @@ import type {
   UniversalProvidersMap,
 } from "@/types";
 import type { AppId } from "./types";
-import type { ClaudeDesktopStatus } from "../providers";
+import type { ClaudeDesktopStatus, SwitchResult } from "../providers";
 
 export interface ProviderSortUpdate {
   id: string;
@@ -50,8 +50,9 @@ export const providersApi = {
     return post(`/providers/${id}/remove-from-live`, { app: appId });
   },
 
-  async switch(id: string, appId: AppId): Promise<boolean> {
-    return post(`/providers/${id}/switch`, { app: appId });
+  async switch(id: string, appId: AppId): Promise<SwitchResult> {
+    await post(`/providers/${id}/switch?app=${encodeURIComponent(appId)}`, {});
+    return { warnings: [] };
   },
 
   async importDefault(appId: AppId): Promise<boolean> {

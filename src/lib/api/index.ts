@@ -5,14 +5,15 @@ import {
   universalProvidersApi as tauriUniversalProvidersApi,
 } from "./providers";
 import { settingsApi as tauriSettingsApi } from "./settings";
+import { backupsApi as tauriBackupsApi } from "./settings";
 import { mcpApi as tauriMcpApi } from "./mcp";
-import { promptsApi } from "./prompts";
-import { skillsApi } from "./skills";
+import { promptsApi as tauriPromptsApi } from "./prompts";
+import { skillsApi as tauriSkillsApi } from "./skills";
 import { usageApi } from "./usage";
 import { vscodeApi } from "./vscode";
-import { proxyApi } from "./proxy";
+import { proxyApi as tauriProxyApi } from "./proxy";
 import { openclawApi } from "./openclaw";
-import { sessionsApi } from "./sessions";
+import { sessionsApi as tauriSessionsApi } from "./sessions";
 import { workspaceApi } from "./workspace";
 import * as tauriConfigApi from "./config";
 import { authApi } from "./auth";
@@ -22,8 +23,13 @@ import {
   universalProvidersApi as webUniversalProvidersApi,
 } from "./web/providers";
 import { settingsApi as webSettingsApi } from "./web/settings";
+import { backupsApi as webBackupsApi } from "./web/settings";
 import { mcpApi as webMcpApi } from "./web/mcp";
 import * as webConfigApi from "./web/config";
+import { promptsApi as webPromptsApi } from "./web/prompts";
+import { skillsApi as webSkillsApi } from "./web/skills";
+import { proxyApi as webProxyApi } from "./web/proxy";
+import { sessionsApi as webSessionsApi } from "./web/sessions";
 
 export type { AppId } from "./types";
 export type { ProviderSwitchEvent } from "./providers";
@@ -42,14 +48,15 @@ export const universalProvidersApi = isTauri()
   ? tauriUniversalProvidersApi
   : webUniversalProvidersApi;
 export const settingsApi = isTauri() ? tauriSettingsApi : webSettingsApi;
+export const backupsApi = isTauri() ? tauriBackupsApi : webBackupsApi;
 export const mcpApi = isTauri() ? tauriMcpApi : webMcpApi;
 export const configApi = isTauri() ? tauriConfigApi : webConfigApi;
-export { promptsApi };
-export { skillsApi };
+export const promptsApi = isTauri() ? tauriPromptsApi : webPromptsApi;
+export const skillsApi = isTauri() ? tauriSkillsApi : webSkillsApi;
+export const proxyApi = isTauri() ? tauriProxyApi : webProxyApi;
+export const sessionsApi = isTauri() ? tauriSessionsApi : webSessionsApi;
 export { usageApi };
 export { vscodeApi };
-export { proxyApi };
 export { openclawApi };
-export { sessionsApi };
 export { workspaceApi };
 export { authApi };

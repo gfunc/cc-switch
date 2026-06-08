@@ -1,36 +1,41 @@
-import { get, post, del } from "../web-client";
+import { get, post, put, del } from "../web-client";
 import type { Prompt } from "../prompts";
 import type { AppId } from "../types";
 
 export const promptsApi = {
-  async getPrompts(appId: AppId): Promise<Prompt[]> {
-    return get(`/prompts?app=${appId}`);
+  async getPrompts(app: AppId): Promise<Record<string, Prompt>> {
+    const prompts = await get<Prompt[]>(`/prompts?app=${app}`);
+    return Object.fromEntries(prompts.map((prompt) => [prompt.id, prompt]));
   },
 
   async getPrompt(id: string): Promise<Prompt | null> {
     return get(`/prompts/${id}`);
   },
 
-  async upsertPrompt(prompt: Prompt, appId: AppId): Promise<boolean> {
-    return post("/prompts", { prompt, app: appId });
+  async upsertPrompt(_app: AppId, id: string, prompt: Prompt): Promise<void> {
+    if (id) {
+      await put(`/prompts/${encodeURIComponent(id)}`, prompt);
+      return;
+    }
+    await post("/prompts", prompt);
   },
 
-  async deletePrompt(id: string, appId: AppId): Promise<boolean> {
-    return del(`/prompts/${id}?app=${appId}`);
+  async deletePrompt(_app: AppId, id: string): Promise<void> {
+    await del(`/prompts/${encodeURIComponent(id)}`);
   },
 
-  async enablePrompt(id: string, appId: AppId): Promise<boolean> {
-    return post(`/prompts/${id}/activate`, { app: appId });
+  async enablePrompt(_app: AppId, id: string): Promise<void> {
+    await post(`/prompts/${encodeURIComponent(id)}/activate`, {});
   },
 
-  async importFromFile(filePath: string, appId: AppId): Promise<Prompt> {
-    return post("/prompts/import", { filePath, app: appId });
+  async importFromFile(app: AppId): Promise<string> {
+    return post("/prompts/import", { app });
   },
 
-  async getCurrentPromptFileContent(appId: AppId): Promise<string> {
+  async getCurrentFileContent(app: AppId): Promise<string | null> {
     const response = await get<{ content: string }>(
-      `/prompts/current-content?app=${appId}`,
+      `/prompts/current-content?app=${app}`,
     );
-    return response.content;
+    return response.content ?? null;
   },
 };
