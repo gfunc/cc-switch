@@ -51,7 +51,7 @@ RUN mkdir -p /usr/local/cargo \
 WORKDIR /app
 
 COPY src-tauri/ ./src-tauri/
-COPY --from=web-builder /app/dist ./web-dist
+COPY --from=web-builder /app/dist ./src-tauri/web-dist
 
 # Pass optional feature flags (e.g. api-only) if provided
 RUN if [ -n "$CARGO_FEATURES" ]; then \
