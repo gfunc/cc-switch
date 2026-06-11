@@ -1,5 +1,10 @@
 import { get, post, put, del, connectWebSocket } from "../web-client";
-import type { Settings, WebDavSyncSettings, RemoteSnapshotInfo } from "@/types";
+import type {
+  Settings,
+  WebDavSyncSettings,
+  S3SyncSettings,
+  RemoteSnapshotInfo,
+} from "@/types";
 import type { AppId } from "./types";
 import type { BackupEntry, ToolInstallationReport } from "../settings";
 
@@ -171,6 +176,34 @@ export const settingsApi = {
     RemoteSnapshotInfo | { empty: true }
   > {
     return get("/settings/webdav/remote-info");
+  },
+
+  // ===== S3 Sync API =====
+
+  async s3TestConnection(
+    settings: S3SyncSettings,
+    preserveEmptyPassword = true,
+  ): Promise<WebDavTestResult> {
+    return post("/settings/s3/test", { settings, preserveEmptyPassword });
+  },
+
+  async s3SyncUpload(): Promise<WebDavSyncResult> {
+    return post("/settings/s3/upload", {});
+  },
+
+  async s3SyncDownload(): Promise<WebDavSyncResult> {
+    return post("/settings/s3/download", {});
+  },
+
+  async s3SyncSaveSettings(
+    settings: S3SyncSettings,
+    passwordTouched: boolean,
+  ): Promise<{ success: boolean }> {
+    return post("/settings/s3/settings", { settings, passwordTouched });
+  },
+
+  async s3SyncFetchRemoteInfo(): Promise<RemoteSnapshotInfo | { empty: true }> {
+    return get("/settings/s3/remote-info");
   },
 
   async syncCurrentProvidersLive(): Promise<void> {
