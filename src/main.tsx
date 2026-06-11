@@ -9,6 +9,11 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { queryClient } from "@/lib/query";
 import { Toaster } from "@/components/ui/sonner";
 import { isTauri } from "@/lib/environment";
+import { installWebLogger, webLog } from "@/lib/webLogger";
+
+// Install browser-side error/console capture as early as possible so failures
+// during bootstrap are reported to the backend (web mode only; no-op in Tauri).
+installWebLogger();
 
 try {
   const ua = navigator.userAgent || "";
@@ -102,6 +107,8 @@ async function bootstrap() {
       </QueryClientProvider>
     </React.StrictMode>,
   );
+
+  webLog.info("app mounted", { mode: isTauri() ? "tauri" : "web" });
 }
 
 void bootstrap();

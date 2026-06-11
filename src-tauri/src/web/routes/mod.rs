@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod logs;
 pub mod mcp;
 pub mod prompts;
 pub mod providers;

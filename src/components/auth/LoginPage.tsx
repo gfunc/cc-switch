@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { authApi } from "@/lib/api";
 import { post, setAuthToken } from "@/lib/api/web-client";
+import { webLog } from "@/lib/webLogger";
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -28,15 +29,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   const handleRevealToken = async () => {
     setIsRevealingToken(true);
+    webLog.info("login: reveal token requested");
     try {
       const revealedToken = await authApi.generateWebAdminToken();
       setToken(revealedToken);
+      webLog.info("login: token revealed");
       toast.success(
         t("login.tokenRevealed", {
           defaultValue: "Token generated and filled",
         }),
       );
     } catch (error) {
+      webLog.error("login: reveal token failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         t("login.tokenRevealFailed", {
           defaultValue: "Failed to reveal token: {{error}}",
@@ -61,6 +67,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
 
     setIsLoading(true);
+    webLog.info("login: verifying token");
 
     try {
       const { valid } = await post<{ valid: boolean }>("/auth/verify", { token: token.trim() });
@@ -70,9 +77,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
 
       setAuthToken(token.trim());
+      webLog.info("login: success");
       toast.success(t("login.success", { defaultValue: "Login successful" }));
       onLogin();
     } catch (error) {
+      webLog.warn("login: failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       toast.error(
         t("login.error", {
           defaultValue: "Login failed",

@@ -72,6 +72,7 @@ pub fn create_router(state: Arc<AppState>, ws_state: Arc<WsState>) -> Router {
         .with_state(shared_state.clone());
     let api_routes = Router::new()
         .nest("/auth", routes::auth::routes())
+        .nest("/logs", routes::logs::routes())
         .merge(protected_routes);
     let ws_route = Router::new()
         .route("/ws", get(handlers::ws::ws_handler))

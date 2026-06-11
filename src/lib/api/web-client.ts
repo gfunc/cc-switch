@@ -1,6 +1,8 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
+import { webLog } from "@/lib/webLogger";
+
 let authToken: string | null = localStorage.getItem("cc_switch_token");
 
 export function setAuthToken(token: string) {
@@ -30,10 +32,38 @@ async function fetchWithAuth(
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    ...options,
-    headers,
-  });
+  const method = options.method ?? "GET";
+  const startedAt = Date.now();
+
+  // Avoid feeding the log-ingest endpoint's own traffic back through the logger.
+  const isLogEndpoint = url.startsWith("/logs");
+  if (!isLogEndpoint) {
+    webLog.debug(`api request ${method} ${url}`);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${url}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    if (!isLogEndpoint) {
+      webLog.error(`api network error ${method} ${url}`, {
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+      });
+    }
+    throw error;
+  }
+
+  if (!isLogEndpoint && !response.ok) {
+    webLog.warn(`api response ${response.status} ${method} ${url}`, {
+      status: response.status,
+      statusText: response.statusText,
+      durationMs: Date.now() - startedAt,
+    });
+  }
 
   if (response.status === 401) {
     clearAuthToken();
@@ -53,11 +83,19 @@ interface ApiEnvelope<T> {
   error?: string | null;
 }
 
-async function parseApiEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
+async function parseApiEnvelope<T>(
+  response: Response,
+  method = "GET",
+  url = "",
+): Promise<ApiEnvelope<T>> {
   const responseText = await response.text();
   const statusLabel = `${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+  const isLogEndpoint = url.startsWith("/logs");
 
   if (!responseText) {
+    if (!isLogEndpoint) {
+      webLog.warn(`api empty body ${method} ${url}`, { status: response.status });
+    }
     throw new Error(`HTTP ${statusLabel}`);
   }
 
@@ -65,10 +103,22 @@ async function parseApiEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> 
   try {
     payload = JSON.parse(responseText) as ApiEnvelope<T>;
   } catch {
+    if (!isLogEndpoint) {
+      webLog.warn(`api invalid json ${method} ${url}`, {
+        status: response.status,
+        bodyPreview: responseText.slice(0, 200),
+      });
+    }
     throw new Error(`HTTP ${statusLabel}`);
   }
 
   if (!payload.success) {
+    if (!isLogEndpoint) {
+      webLog.warn(`api error ${method} ${url}`, {
+        status: response.status,
+        error: payload.error ?? null,
+      });
+    }
     throw new Error(payload.error || `HTTP ${statusLabel}`);
   }
 
@@ -77,7 +127,7 @@ async function parseApiEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> 
 
 export async function get<T>(url: string): Promise<T> {
   const response = await fetchWithAuth(url, { method: "GET" });
-  const data = await parseApiEnvelope<T>(response);
+  const data = await parseApiEnvelope<T>(response, "GET", url);
   return data.data;
 }
 
@@ -86,7 +136,7 @@ export async function post<T>(url: string, body?: unknown): Promise<T> {
     method: "POST",
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await parseApiEnvelope<T>(response);
+  const data = await parseApiEnvelope<T>(response, "POST", url);
   return data.data;
 }
 
@@ -95,7 +145,7 @@ export async function put<T>(url: string, body?: unknown): Promise<T> {
     method: "PUT",
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await parseApiEnvelope<T>(response);
+  const data = await parseApiEnvelope<T>(response, "PUT", url);
   return data.data;
 }
 
@@ -103,7 +153,7 @@ export async function del<T>(url: string): Promise<T> {
   const response = await fetchWithAuth(url, {
     method: "DELETE",
   });
-  const data = await parseApiEnvelope<T>(response);
+  const data = await parseApiEnvelope<T>(response, "DELETE", url);
   return data.data;
 }
 
@@ -115,7 +165,7 @@ export function connectWebSocket(
   const ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    console.log("WebSocket connected");
+    webLog.info("websocket connected", { url: wsUrl });
   };
 
   ws.onmessage = (event) => {
@@ -123,16 +173,18 @@ export function connectWebSocket(
       const data = JSON.parse(event.data);
       onMessage(data);
     } catch (e) {
-      console.error("Failed to parse WebSocket message:", e);
+      webLog.error("websocket message parse failed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
   ws.onclose = () => {
-    console.log("WebSocket disconnected");
+    webLog.info("websocket disconnected");
   };
 
   ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
+    webLog.error("websocket error", { detail: String(error) });
   };
 
   return () => {
@@ -164,7 +216,7 @@ export function connectTerminalWebSocket(
   let isReady = false;
 
   ws.onopen = () => {
-    console.log('Terminal WebSocket connected');
+    webLog.info("terminal websocket connected", { provider: providerId, app });
     // Send auth token as first message if needed
     if (authToken) {
       // Note: auth is handled via headers in query params for WebSocket upgrade
@@ -182,7 +234,9 @@ export function connectTerminalWebSocket(
           onError(data.error);
         }
       } catch (e) {
-        console.error('Failed to parse WebSocket message:', e);
+        webLog.error("terminal websocket message parse failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     } else if (event.data instanceof ArrayBuffer) {
       const bytes = new Uint8Array(event.data);
@@ -194,12 +248,16 @@ export function connectTerminalWebSocket(
   };
 
   ws.onclose = () => {
-    console.log('Terminal WebSocket disconnected');
+    webLog.info("terminal websocket disconnected", { provider: providerId, app });
     onClose();
   };
 
   ws.onerror = (error) => {
-    console.error('Terminal WebSocket error:', error);
+    webLog.error("terminal websocket error", {
+      provider: providerId,
+      app,
+      detail: String(error),
+    });
     onError('Connection error');
   };
 
