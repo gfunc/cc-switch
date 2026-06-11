@@ -1,47 +1,49 @@
 import { get, post, del } from "../web-client";
-import type { McpServer } from "@/types";
+import type { McpServer, McpServersMap } from "@/types";
 import type { AppId } from "./types";
 
+// Web (HTTP) implementation of the unified MCP API.
+// Must expose the same surface consumed by the shared hooks (src/hooks/useMcp.ts)
+// so that `mcpApi = isTauri() ? tauriMcpApi : webMcpApi` stays interchangeable.
 export const mcpApi = {
-  async getServers(): Promise<McpServer[]> {
+  /**
+   * 获取所有 MCP 服务器（统一结构，id -> McpServer）
+   */
+  async getAllServers(): Promise<McpServersMap> {
     return get("/mcp");
   },
 
-  async getServer(id: string): Promise<McpServer | null> {
-    return get(`/mcp/${id}`);
+  /**
+   * 添加或更新 MCP 服务器（统一结构）
+   */
+  async upsertUnifiedServer(server: McpServer): Promise<void> {
+    await post("/mcp", server);
   },
 
-  async upsertServer(server: McpServer): Promise<boolean> {
-    return post("/mcp", server);
+  /**
+   * 删除 MCP 服务器
+   */
+  async deleteUnifiedServer(id: string): Promise<boolean> {
+    return del(`/mcp/${encodeURIComponent(id)}`);
   },
 
-  async deleteServer(id: string): Promise<boolean> {
-    return del(`/mcp/${id}`);
+  /**
+   * 切换 MCP 服务器在指定应用的启用状态
+   */
+  async toggleApp(
+    serverId: string,
+    app: AppId,
+    enabled: boolean,
+  ): Promise<void> {
+    await post(`/mcp/${encodeURIComponent(serverId)}/toggle`, { app, enabled });
   },
 
-  async toggleServer(id: string, enabled: boolean): Promise<boolean> {
-    return post(`/mcp/${id}/toggle`, { enabled });
-  },
-
-  async importFromApps(appId: AppId): Promise<number> {
-    return post("/mcp/import", { app: appId });
-  },
-
-  async getClaudeMcpStatus(): Promise<{ enabled: boolean } | null> {
-    return get("/mcp/claude/status");
-  },
-
-  async getCodexMcpStatus(): Promise<{ enabled: boolean } | null> {
-    return get("/mcp/codex/status");
-  },
-
-  async getGeminiMcpStatus(): Promise<{ enabled: boolean } | null> {
-    return get("/mcp/gemini/status");
-  },
-
-  async validateCommand(
-    command: string,
-  ): Promise<{ valid: boolean; error?: string }> {
-    return post("/mcp/validate", { command });
+  /**
+   * 从所有应用导入 MCP 服务器（服务端读取本地各应用配置）
+   */
+  async importFromApps(): Promise<number> {
+    // Send an empty object so the server's JSON body extractor succeeds and
+    // falls through to the "import from local app configs" path.
+    return post("/mcp/import", {});
   },
 };
