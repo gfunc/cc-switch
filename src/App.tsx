@@ -417,6 +417,7 @@ function App() {
   );
 
   useEffect(() => {
+    if (!isTauri()) return;
     let active = true;
     let unlistenResize: (() => void) | undefined;
 
@@ -447,6 +448,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isTauri()) return;
     // settingsData 未加载时跳过，避免用 fallback false 覆盖 Rust 侧已设好的装饰状态
     if (!settingsData) return;
 
@@ -487,6 +489,7 @@ function App() {
 
   useEffect(() => {
     const checkMigration = async () => {
+      if (!isTauri()) return;
       try {
         const migrated = await invoke<boolean>("get_migration_result");
         if (migrated) {
@@ -505,6 +508,7 @@ function App() {
 
   useEffect(() => {
     const checkSkillsMigration = async () => {
+      if (!isTauri()) return;
       try {
         const result = await invoke<{ count: number; error?: string } | null>(
           "get_skills_migration_result",
@@ -835,6 +839,7 @@ function App() {
   };
 
   const handleWindowMinimize = async () => {
+    if (!isTauri()) return;
     try {
       await getCurrentWindow().minimize();
     } catch (error) {
@@ -844,6 +849,7 @@ function App() {
   };
 
   const handleWindowToggleMaximize = async () => {
+    if (!isTauri()) return;
     try {
       const currentWindow = getCurrentWindow();
       await currentWindow.toggleMaximize();
@@ -855,6 +861,7 @@ function App() {
   };
 
   const handleWindowClose = async () => {
+    if (!isTauri()) return;
     try {
       await getCurrentWindow().close();
     } catch (error) {

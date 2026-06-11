@@ -148,6 +148,15 @@ fn default_settings() -> Settings {
         skill_sync_method: None,
         webdav_sync: None,
         preferred_terminal: None,
+        first_run_notice_confirmed: None,
+        proxy_confirmed: None,
+        usage_confirmed: None,
+        stream_check_confirmed: None,
+        enable_failover_toggle: None,
+        preserve_codex_official_auth_on_switch: None,
+        failover_confirmed: None,
+        auto_sync_confirmed: None,
+        common_config_confirmed: None,
     }
 }
 

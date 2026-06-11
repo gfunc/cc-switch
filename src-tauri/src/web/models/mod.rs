@@ -188,6 +188,24 @@ pub struct Settings {
     pub webdav_sync: Option<WebDavSyncSettings>,
     #[serde(rename = "preferredTerminal")]
     pub preferred_terminal: Option<String>,
+    #[serde(rename = "firstRunNoticeConfirmed")]
+    pub first_run_notice_confirmed: Option<bool>,
+    #[serde(rename = "proxyConfirmed")]
+    pub proxy_confirmed: Option<bool>,
+    #[serde(rename = "usageConfirmed")]
+    pub usage_confirmed: Option<bool>,
+    #[serde(rename = "streamCheckConfirmed")]
+    pub stream_check_confirmed: Option<bool>,
+    #[serde(rename = "enableFailoverToggle")]
+    pub enable_failover_toggle: Option<bool>,
+    #[serde(rename = "preserveCodexOfficialAuthOnSwitch")]
+    pub preserve_codex_official_auth_on_switch: Option<bool>,
+    #[serde(rename = "failoverConfirmed")]
+    pub failover_confirmed: Option<bool>,
+    #[serde(rename = "autoSyncConfirmed")]
+    pub auto_sync_confirmed: Option<bool>,
+    #[serde(rename = "commonConfigConfirmed")]
+    pub common_config_confirmed: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

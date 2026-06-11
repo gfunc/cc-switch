@@ -13,12 +13,13 @@ services:
     environment:
       HOME: /host-home
       RUST_LOG: info
-      CC_SWITCH_WEB_PORT: "3001"
+      CC_SWITCH_WEB_PORT: "13001"
       CC_SWITCH_WEB_BIND_ALL: "true"
+      TAURI_RESOURCE_DIR: "/app/src-tauri"
       JWT_SECRET: "${JWT_SECRET:-cc-switch-dev-secret}"
       CC_SWITCH_ENABLE_TOKEN_REVEAL: "${CC_SWITCH_ENABLE_TOKEN_REVEAL:-true}"
     ports:
-      - "${WEBSITE_PORT:-13001}:3001"
+      - "${WEBSITE_PORT:-13001}:13001"
     volumes:
       - ${HOST_HOME:-~}:/host-home
       - ./src-tauri/db:/data/db
