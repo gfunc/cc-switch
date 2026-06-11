@@ -239,6 +239,56 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
     },
   },
   {
+    name: "CCSub",
+    websiteUrl: "https://www.ccsub.net",
+    apiKeyUrl: "https://www.ccsub.net/register?ref=Y6Z8DXEA",
+    settingsConfig: {
+      name: "ccsub",
+      base_url: "https://www.ccsub.net/v1",
+      api_key: "",
+      api_mode: "chat_completions",
+      models: [
+        {
+          id: "gpt-5.5",
+          name: "GPT-5.5",
+          context_length: 400000,
+        },
+      ],
+    },
+    category: "aggregator",
+    isPartner: true,
+    partnerPromotionKey: "ccsub",
+    icon: "ccsub",
+    suggestedDefaults: {
+      model: { default: "gpt-5.5", provider: "ccsub" },
+    },
+  },
+  {
+    name: "Unity2.ai",
+    websiteUrl: "https://unity2.ai",
+    apiKeyUrl: "https://unity2.ai/register?source=ccs",
+    settingsConfig: {
+      name: "unity2",
+      base_url: "https://api.unity2.ai/v1",
+      api_key: "",
+      api_mode: "chat_completions",
+      models: [
+        {
+          id: "gpt-5.5",
+          name: "GPT-5.5",
+          context_length: 400000,
+        },
+      ],
+    },
+    category: "aggregator",
+    isPartner: true,
+    partnerPromotionKey: "unity2",
+    icon: "unity2",
+    suggestedDefaults: {
+      model: { default: "gpt-5.5", provider: "unity2" },
+    },
+  },
+  {
     name: "OpenRouter",
     nameKey: "providerForm.presets.openrouter",
     websiteUrl: "https://openrouter.ai",
@@ -393,7 +443,7 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
     apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
     settingsConfig: {
       name: "zhipu_glm",
-      base_url: "https://open.bigmodel.cn/api/paas/v4",
+      base_url: "https://open.bigmodel.cn/api/coding/paas/v4",
       api_key: "",
       api_mode: "chat_completions",
       models: [{ id: "glm-5.1", name: "GLM-5.1" }],
@@ -411,7 +461,7 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
     apiKeyUrl: "https://z.ai/subscribe?ic=8JVLJQFSKB",
     settingsConfig: {
       name: "zhipu_glm_en",
-      base_url: "https://api.z.ai/api/paas/v4",
+      base_url: "https://api.z.ai/api/coding/paas/v4",
       api_key: "",
       api_mode: "chat_completions",
       models: [{ id: "glm-5.1", name: "GLM-5.1" }],
@@ -465,7 +515,7 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
   },
   {
     name: "Kimi",
-    websiteUrl: "https://platform.moonshot.cn/console",
+    websiteUrl: "https://platform.moonshot.cn/console?aff=cc-switch",
     settingsConfig: {
       name: "kimi",
       base_url: "https://api.moonshot.cn/v1",
@@ -482,7 +532,7 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
   },
   {
     name: "Kimi For Coding",
-    websiteUrl: "https://www.kimi.com/code/docs/",
+    websiteUrl: "https://www.kimi.com/code/docs/?aff=cc-switch",
     settingsConfig: {
       name: "kimi_coding",
       base_url: "https://api.kimi.com/coding/",
@@ -652,6 +702,26 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
     iconColor: "#006FFB",
     suggestedDefaults: {
       model: { default: "gpt-5.5", provider: "aihubmix" },
+    },
+  },
+  {
+    name: "CherryIN",
+    websiteUrl: "https://open.cherryin.ai",
+    apiKeyUrl: "https://open.cherryin.ai/console/token",
+    settingsConfig: {
+      name: "cherryin",
+      base_url: "https://open.cherryin.net",
+      api_key: "",
+      api_mode: "anthropic_messages",
+      models: [
+        { id: "anthropic/claude-opus-4.8", name: "Claude Opus 4.8" },
+        { id: "anthropic/claude-sonnet-4.6", name: "Claude Sonnet 4.6" },
+      ],
+    },
+    category: "aggregator",
+    icon: "cherryin",
+    suggestedDefaults: {
+      model: { default: "anthropic/claude-opus-4.8", provider: "cherryin" },
     },
   },
   {
@@ -1035,11 +1105,11 @@ export const hermesProviderPresets: HermesProviderPreset[] = [
   },
   {
     name: "SSSAiCode",
-    websiteUrl: "https://www.sssaicode.com",
-    apiKeyUrl: "https://www.sssaicode.com/register?ref=DCP0SM",
+    websiteUrl: "https://sssaicodeapi.com",
+    apiKeyUrl: "https://sssaicodeapi.com/register?ref=DCP0SM",
     settingsConfig: {
       name: "sssaicode",
-      base_url: "https://node-hk.sssaicode.com/api",
+      base_url: "https://node-hk.sssaicodeapi.com/api",
       api_key: "",
       api_mode: "anthropic_messages",
       models: [

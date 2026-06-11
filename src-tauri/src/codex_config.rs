@@ -208,7 +208,10 @@ pub fn extract_codex_api_key(auth: Option<&Value>, config_text: Option<&str>) ->
 /// Extract the upstream base URL from a Codex `config.toml` string.
 ///
 /// Prefers the active `[model_providers.<model_provider>].base_url`, falling
-/// back to a top-level `base_url` when no model provider is selected.
+/// back to a top-level `base_url`. Deliberately never reads a non-active
+/// `[model_providers.*]` section — the frontend `extractCodexBaseUrl`
+/// (`getRecoverableBaseUrlAssignments`) excludes those too, and a leftover
+/// section unrelated to the active provider must not leak into `{{baseUrl}}`.
 pub fn extract_codex_base_url(config_text: &str) -> Option<String> {
     let doc = config_text.parse::<toml::Value>().ok()?;
 
@@ -682,20 +685,18 @@ fn set_codex_model_catalog_json_field(
     let mut doc = config_text
         .parse::<DocumentMut>()
         .map_err(|e| AppError::Message(format!("Invalid Codex config.toml: {e}")))?;
-    let generated_path = get_codex_model_catalog_path();
 
     match catalog_path {
-        Some(path) => {
-            doc["model_catalog_json"] = toml_edit::value(path.to_string_lossy().as_ref());
+        Some(_) => {
+            doc["model_catalog_json"] = toml_edit::value(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME);
         }
         None => {
             let should_remove = doc
                 .get("model_catalog_json")
                 .and_then(|item| item.as_str())
                 .map(|path| {
-                    path == generated_path.to_string_lossy().as_ref()
-                        || Path::new(path).file_name().and_then(|name| name.to_str())
-                            == Some(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME)
+                    Path::new(path).file_name().and_then(|name| name.to_str())
+                        == Some(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME)
                 })
                 .unwrap_or(false);
             if should_remove {
@@ -768,7 +769,10 @@ pub fn read_codex_model_catalog_simplified_from_live() -> Result<Option<Value>, 
 /// Given `config.toml` text, resolve the on-disk path of the cc-switch–owned
 /// catalog file (returns `None` if `model_catalog_json` is absent or points at
 /// a file we don't own). Relative paths fall back to `generated_path`.
-fn resolve_cc_switch_catalog_path(config_text: &str, generated_path: &Path) -> Option<PathBuf> {
+pub(crate) fn resolve_cc_switch_catalog_path(
+    config_text: &str,
+    generated_path: &Path,
+) -> Option<PathBuf> {
     if config_text.trim().is_empty() {
         return None;
     }
@@ -780,9 +784,8 @@ fn resolve_cc_switch_catalog_path(config_text: &str, generated_path: &Path) -> O
         .filter(|s| !s.is_empty())?;
 
     let referenced_path = Path::new(catalog_path_str);
-    let is_cc_switch_owned = catalog_path_str == generated_path.to_string_lossy().as_ref()
-        || referenced_path.file_name().and_then(|name| name.to_str())
-            == Some(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME);
+    let is_cc_switch_owned = referenced_path.file_name().and_then(|name| name.to_str())
+        == Some(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME);
     if !is_cc_switch_owned {
         return None;
     }
@@ -1253,6 +1256,50 @@ pub fn remove_codex_toml_base_url_if(toml_str: &str, predicate: impl Fn(&str) ->
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn extract_base_url_prefers_active_provider_section() {
+        let input = r#"model_provider = "azure"
+
+[model_providers.azure]
+base_url = "https://azure.example.com/v1"
+
+[model_providers.other]
+base_url = "https://other.example.com/v1"
+"#;
+
+        assert_eq!(
+            extract_codex_base_url(input).as_deref(),
+            Some("https://azure.example.com/v1")
+        );
+    }
+
+    #[test]
+    fn extract_base_url_falls_back_to_top_level_only() {
+        let top_level = r#"base_url = "https://top-level.example.com/v1""#;
+        assert_eq!(
+            extract_codex_base_url(top_level).as_deref(),
+            Some("https://top-level.example.com/v1")
+        );
+    }
+
+    // Mirrors the frontend extractCodexBaseUrl: a non-active provider section
+    // is never a credential source, whether the active provider points
+    // elsewhere (e.g. the built-in "openai") or none is selected at all.
+    #[test]
+    fn extract_base_url_ignores_non_active_provider_sections() {
+        let mismatched = r#"model_provider = "openai"
+
+[model_providers.custom]
+base_url = "https://leftover.example.com/v1"
+"#;
+        assert_eq!(extract_codex_base_url(mismatched), None);
+
+        let no_active = r#"[model_providers.any]
+base_url = "https://single.example.com/v1"
+"#;
+        assert_eq!(extract_codex_base_url(no_active), None);
+    }
 
     #[test]
     fn prepare_provider_live_config_rejects_key_without_config() {
@@ -1791,7 +1838,7 @@ base_url = "https://production.api/v1"
     }
 
     #[test]
-    fn model_catalog_json_field_operates_on_top_level() {
+    fn model_catalog_json_field_writes_relative_filename() {
         let input = r#"model_provider = "any"
 
 [model_providers.any]
@@ -1805,7 +1852,7 @@ name = "any"
             parsed
                 .get("model_catalog_json")
                 .and_then(|value| value.as_str()),
-            Some("/tmp/cc-switch-model-catalog.json")
+            Some(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME)
         );
         assert!(
             parsed
@@ -2025,5 +2072,111 @@ name = "any"
                 "static template must contain key '{key}'"
             );
         }
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn set_catalog_json_field_writes_filename_ignoring_unc_path() {
+        let input = r#"model_provider = "custom"
+model = "glm-5"
+"#;
+        // Simulate a WSL UNC path as cc-switch would see it on Windows;
+        // the function now writes just the relative filename.
+        let unc_path =
+            Path::new(r"\\wsl.localhost\Ubuntu\home\user\.codex\cc-switch-model-catalog.json");
+
+        let result = set_codex_model_catalog_json_field(input, Some(unc_path)).unwrap();
+        let parsed: toml::Value = toml::from_str(&result).unwrap();
+
+        let written_path = parsed
+            .get("model_catalog_json")
+            .and_then(|v| v.as_str())
+            .expect("model_catalog_json should be set");
+        assert_eq!(
+            written_path, CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME,
+            "should write only the relative filename, not the UNC path"
+        );
+    }
+
+    #[test]
+    fn set_catalog_json_field_writes_filename_for_any_path() {
+        let input = r#"model_provider = "custom"
+model = "glm-5"
+"#;
+        let regular_path = Path::new("/home/user/.codex/cc-switch-model-catalog.json");
+
+        let result = set_codex_model_catalog_json_field(input, Some(regular_path)).unwrap();
+        let parsed: toml::Value = toml::from_str(&result).unwrap();
+
+        assert_eq!(
+            parsed.get("model_catalog_json").and_then(|v| v.as_str()),
+            Some(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME),
+            "should write only the relative filename, not the full path"
+        );
+    }
+
+    #[test]
+    fn set_catalog_json_none_removes_cc_switch_owned_by_filename() {
+        // After the WSL fix, TOML may contain a Linux-style path.
+        // The None arm must still remove it (file_name match catches any format).
+        let input = r#"model_catalog_json = "/home/user/.codex/cc-switch-model-catalog.json"
+"#;
+        let result = set_codex_model_catalog_json_field(input, None).unwrap();
+        let parsed: toml::Value = toml::from_str(&result).unwrap();
+        assert!(
+            parsed.get("model_catalog_json").is_none(),
+            "None arm should remove cc-switch-owned field regardless of path format"
+        );
+    }
+
+    #[test]
+    fn set_catalog_json_none_preserves_user_owned_catalog() {
+        let input = r#"model_catalog_json = "/Users/me/.codex/my-custom-catalog.json"
+"#;
+        let result = set_codex_model_catalog_json_field(input, None).unwrap();
+        let parsed: toml::Value = toml::from_str(&result).unwrap();
+        assert_eq!(
+            parsed.get("model_catalog_json").and_then(|v| v.as_str()),
+            Some("/Users/me/.codex/my-custom-catalog.json"),
+            "None arm should NOT remove user-owned catalog"
+        );
+    }
+
+    #[test]
+    fn resolve_catalog_finds_relative_filename() {
+        let config_text = r#"model_provider = "custom"
+model_catalog_json = "cc-switch-model-catalog.json"
+"#;
+        let generated_path = PathBuf::from("/home/user/.codex/cc-switch-model-catalog.json");
+        let result = resolve_cc_switch_catalog_path(config_text, &generated_path);
+        assert_eq!(
+            result,
+            Some(generated_path),
+            "relative filename should resolve to generated_path for file I/O"
+        );
+    }
+
+    #[test]
+    fn resolve_catalog_ignores_user_owned_relative() {
+        let config_text = r#"model_catalog_json = "my-custom-catalog.json"
+"#;
+        let generated_path = PathBuf::from("/home/user/.codex/cc-switch-model-catalog.json");
+        let result = resolve_cc_switch_catalog_path(config_text, &generated_path);
+        assert_eq!(
+            result, None,
+            "user-owned catalog should not be claimed by cc-switch"
+        );
+    }
+
+    #[test]
+    fn set_catalog_json_none_removes_relative_path() {
+        let input = r#"model_catalog_json = "cc-switch-model-catalog.json"
+"#;
+        let result = set_codex_model_catalog_json_field(input, None).unwrap();
+        let parsed: toml::Value = toml::from_str(&result).unwrap();
+        assert!(
+            parsed.get("model_catalog_json").is_none(),
+            "None arm should remove relative cc-switch-owned field"
+        );
     }
 }

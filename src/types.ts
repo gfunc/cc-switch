@@ -219,6 +219,8 @@ export interface ProviderMeta {
   codexFastMode?: boolean;
   // Codex Responses -> Chat Completions reasoning capability metadata
   codexChatReasoning?: CodexChatReasoning;
+  // Custom User-Agent for local proxy routing. Only applied by the local proxy.
+  customUserAgent?: string;
   // 供应商类型（用于识别 Copilot 等特殊供应商）
   providerType?: string;
   // GitHub Copilot 关联账号 ID（旧字段，保留兼容读取）
@@ -284,6 +286,20 @@ export interface WebDavSyncSettings {
   baseUrl?: string;
   username?: string;
   password?: string;
+  remoteRoot?: string;
+  profile?: string;
+  status?: WebDavSyncStatus;
+}
+
+// S3 同步配置
+export interface S3SyncSettings {
+  enabled?: boolean;
+  autoSync?: boolean;
+  region?: string;
+  bucket?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  endpoint?: string;
   remoteRoot?: string;
   profile?: string;
   status?: WebDavSyncStatus;
@@ -381,6 +397,9 @@ export interface Settings {
 
   // ===== WebDAV v2 同步设置 =====
   webdavSync?: WebDavSyncSettings;
+
+  // ===== S3 同步设置 =====
+  s3Sync?: S3SyncSettings;
 
   // ===== 备份策略设置 =====
   // Auto-backup interval in hours (0=disabled, default 24)
