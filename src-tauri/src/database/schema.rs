@@ -1020,22 +1020,39 @@ impl Database {
             .unwrap_or(0);
         log::info!("旧 skills 表有 {old_count} 条记录");
 
-        let mut stmt = conn
-            .prepare(
-                "SELECT directory, app_type FROM skills
-                 WHERE installed = 1",
-            )
-            .map_err(|e| AppError::Database(format!("查询旧 skills 快照失败: {e}")))?;
-        let snapshot_rows: Vec<LegacySkillMigrationRow> = stmt
-            .query_map([], |row| {
-                Ok(LegacySkillMigrationRow {
-                    directory: row.get(0)?,
-                    app_type: row.get(1)?,
+        // 旧表快照：仅当 skills 表确实是 v2 结构（包含 directory/app_type/installed）时才读取。
+        // 兼容性说明：某些部署（如独立 Web/API 服务器的早期版本）可能创建过结构不同的
+        // skills 表（例如只有 id/name 而无 directory）。此时直接查询会因列缺失而报错，
+        // 导致迁移整体失败。这里改为：若缺少必要列则跳过快照（置空），后续仍会重建表并
+        // 由 SkillService 在启动时从文件系统重新扫描导入。
+        let has_v2_skill_columns = Self::has_column(conn, "skills", "directory")?
+            && Self::has_column(conn, "skills", "app_type")?
+            && Self::has_column(conn, "skills", "installed")?;
+
+        let snapshot_rows: Vec<LegacySkillMigrationRow> = if has_v2_skill_columns {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT directory, app_type FROM skills
+                     WHERE installed = 1",
+                )
+                .map_err(|e| AppError::Database(format!("查询旧 skills 快照失败: {e}")))?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(LegacySkillMigrationRow {
+                        directory: row.get(0)?,
+                        app_type: row.get(1)?,
+                    })
                 })
-            })
-            .map_err(|e| AppError::Database(format!("读取旧 skills 快照失败: {e}")))?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AppError::Database(format!("解析旧 skills 快照失败: {e}")))?;
+                .map_err(|e| AppError::Database(format!("读取旧 skills 快照失败: {e}")))?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| AppError::Database(format!("解析旧 skills 快照失败: {e}")))?;
+            rows
+        } else {
+            log::warn!(
+                "skills 表缺少 v2 结构列（directory/app_type/installed），跳过快照读取，迁移后将由文件系统扫描重建"
+            );
+            Vec::new()
+        };
         let snapshot_json = serde_json::to_string(&snapshot_rows)
             .map_err(|e| AppError::Database(format!("序列化旧 skills 快照失败: {e}")))?;
 
