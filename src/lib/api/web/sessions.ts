@@ -1,4 +1,4 @@
-import { get, del } from "../web-client";
+import { get, post } from "../web-client";
 import type { SessionMeta, SessionMessage } from "@/types";
 import type { DeleteSessionOptions, DeleteSessionResult } from "../sessions";
 
@@ -12,13 +12,16 @@ export const sessionsApi = {
     sourcePath: string,
   ): Promise<SessionMessage[]> {
     return get(
-      `/sessions/${providerId}/messages?sourcePath=${encodeURIComponent(sourcePath)}`,
+      `/sessions/messages?providerId=${encodeURIComponent(providerId)}&sourcePath=${encodeURIComponent(sourcePath)}`,
     );
   },
 
   async delete(options: DeleteSessionOptions): Promise<boolean> {
-    await del(`/sessions/${encodeURIComponent(options.sessionId)}`);
-    return true;
+    return post("/sessions/delete", {
+      providerId: options.providerId,
+      sessionId: options.sessionId,
+      sourcePath: options.sourcePath,
+    });
   },
 
   async deleteMany(
@@ -45,6 +48,8 @@ export const sessionsApi = {
     cwd?: string | null;
     customConfig?: string | null;
   }): Promise<boolean> {
+    // Launching a local terminal is inherently desktop-only; the web client
+    // has no host shell access. The UI hides this action in web mode.
     console.warn("launch_session_terminal not available in web mode");
     return false;
   },

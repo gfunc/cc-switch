@@ -302,7 +302,56 @@ fn remove_path_if_exists(path: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::tempdir;
+
+    /// `scan_sessions` must discover Claude session logs under
+    /// `<home>/.claude/projects/**.jsonl`, skip `agent-*` sessions, and surface
+    /// the first real user message as the title. This guards the path the web
+    /// `/sessions` route depends on (it delegates to `scan_sessions`).
+    #[test]
+    #[serial]
+    fn scan_sessions_discovers_claude_logs_under_test_home() {
+        let home = tempdir().expect("tempdir");
+        let projects = home.path().join(".claude/projects/proj-a");
+        std::fs::create_dir_all(&projects).expect("mkdir projects");
+
+        // A normal session.
+        std::fs::write(
+            projects.join("session-one.jsonl"),
+            concat!(
+                "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Hello there\"},\"sessionId\":\"sid-one\",\"timestamp\":\"2026-03-06T10:00:00Z\",\"cwd\":\"/tmp/project\"}\n",
+                "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":\"Hi!\"},\"timestamp\":\"2026-03-06T10:00:02Z\",\"cwd\":\"/tmp/project\"}\n",
+            ),
+        )
+        .expect("write session");
+
+        // An agent session that must be skipped.
+        std::fs::write(
+            projects.join("agent-skip.jsonl"),
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"agent\"},\"sessionId\":\"agent-skip\",\"timestamp\":\"2026-03-06T10:00:00Z\",\"cwd\":\"/tmp/project\"}\n",
+        )
+        .expect("write agent session");
+
+        let prev = std::env::var_os("CC_SWITCH_TEST_HOME");
+        std::env::set_var("CC_SWITCH_TEST_HOME", home.path());
+        let sessions = scan_sessions();
+        match prev {
+            Some(v) => std::env::set_var("CC_SWITCH_TEST_HOME", v),
+            None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+        }
+
+        let found: Vec<_> = sessions
+            .iter()
+            .filter(|s| s.provider_id == PROVIDER_ID)
+            .collect();
+        assert_eq!(found.len(), 1, "exactly one non-agent Claude session");
+        let meta = found[0];
+        assert_eq!(meta.session_id, "sid-one");
+        assert_eq!(meta.title.as_deref(), Some("Hello there"));
+        assert_eq!(meta.project_dir.as_deref(), Some("/tmp/project"));
+        assert!(meta.source_path.is_some());
+    }
 
     #[test]
     fn delete_session_removes_main_file_and_sidecar_directory() {
