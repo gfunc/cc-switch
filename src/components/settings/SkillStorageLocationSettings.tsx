@@ -12,7 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { skillsApi, type MigrationResult } from "@/lib/api/skills";
+import { skillsApi } from "@/lib/api";
+import type { MigrationResult } from "@/lib/api/skills";
 import type { SkillStorageLocation } from "@/types";
 
 export interface SkillStorageLocationSettingsProps {

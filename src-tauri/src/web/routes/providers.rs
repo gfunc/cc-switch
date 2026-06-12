@@ -44,6 +44,13 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/import-opencode-live", post(import_opencode_live))
         .route("/opencode-live-ids", get(get_opencode_live_ids))
         .route("/openclaw-live-ids", get(get_openclaw_live_ids))
+        .route("/hermes-live-ids", get(get_hermes_live_ids))
+        .route("/claude-desktop-default-routes", get(get_claude_desktop_default_routes))
+        .route("/claude-desktop-status", get(get_claude_desktop_status))
+        .route("/import-openclaw-live", post(import_openclaw_live))
+        .route("/import-hermes-live", post(import_hermes_live))
+        .route("/import-claude-desktop-from-claude", post(import_claude_desktop_from_claude))
+        .route("/ensure-claude-desktop-official", post(ensure_claude_desktop_official))
     .route("/:id", get(get_provider))
     .route("/:id", put(update_provider))
     .route("/:id", delete(delete_provider))
@@ -160,6 +167,118 @@ async fn get_openclaw_live_ids() -> Json<ApiResponse<Vec<String>>> {
             providers.into_iter().map(|(id, _)| id).collect(),
         )),
         Err(e) => Json(ApiResponse::error(format!("Failed to read OpenClaw live ids: {e}"))),
+    }
+}
+
+async fn get_hermes_live_ids() -> Json<ApiResponse<Vec<String>>> {
+    match crate::hermes_config::get_providers() {
+        Ok(providers) => Json(ApiResponse::success(
+            providers.into_iter().map(|(id, _)| id).collect(),
+        )),
+        Err(e) => Json(ApiResponse::error(format!("Failed to read Hermes live ids: {e}"))),
+    }
+}
+
+async fn get_claude_desktop_default_routes(
+) -> Json<ApiResponse<Vec<crate::claude_desktop_config::ClaudeDesktopDefaultRoute>>> {
+    Json(ApiResponse::success(
+        crate::claude_desktop_config::default_proxy_routes(),
+    ))
+}
+
+async fn get_claude_desktop_status(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<crate::claude_desktop_config::ClaudeDesktopStatus>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    let proxy_running = desktop.proxy_service.is_running().await;
+    match crate::claude_desktop_config::get_status(desktop.db.as_ref(), proxy_running) {
+        Ok(status) => Json(ApiResponse::success(status)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
+async fn import_openclaw_live(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<usize>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match crate::services::provider::import_openclaw_providers_from_live(&desktop) {
+        Ok(imported) => {
+            if imported > 0 {
+                crate::web::handlers::ws::broadcast_event(
+                    &ws_state,
+                    "provider.imported",
+                    json!({ "app": "openclaw" }),
+                );
+            }
+            Json(ApiResponse::success(imported))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Failed to import OpenClaw providers: {e}"))),
+    }
+}
+
+async fn import_hermes_live(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<usize>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match crate::services::provider::import_hermes_providers_from_live(&desktop) {
+        Ok(imported) => {
+            if imported > 0 {
+                crate::web::handlers::ws::broadcast_event(
+                    &ws_state,
+                    "provider.imported",
+                    json!({ "app": "hermes" }),
+                );
+            }
+            Json(ApiResponse::success(imported))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Failed to import Hermes providers: {e}"))),
+    }
+}
+
+async fn import_claude_desktop_from_claude(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<usize>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match crate::commands::import_claude_desktop_providers_from_claude_impl(&desktop) {
+        Ok(imported) => {
+            if imported > 0 {
+                crate::web::handlers::ws::broadcast_event(
+                    &ws_state,
+                    "provider.imported",
+                    json!({ "app": "claude-desktop" }),
+                );
+            }
+            Json(ApiResponse::success(imported))
+        }
+        Err(e) => Json(ApiResponse::error(e)),
+    }
+}
+
+async fn ensure_claude_desktop_official(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<bool>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match desktop.db.ensure_official_seed_by_id(
+        crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
+        AppType::ClaudeDesktop,
+    ) {
+        Ok(changed) => Json(ApiResponse::success(changed)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
     }
 }
 

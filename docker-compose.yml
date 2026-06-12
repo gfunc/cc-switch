@@ -23,5 +23,5 @@ services:
     volumes:
       - ${HOST_HOME:-~}:/host-home
       - ./src-tauri/db:/data/db
-    command: /app/cc-switch
+    command: /usr/local/bin/cc-switch
     restart: unless-stopped

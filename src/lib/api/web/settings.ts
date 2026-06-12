@@ -6,7 +6,13 @@ import type {
   RemoteSnapshotInfo,
 } from "@/types";
 import type { AppId } from "./types";
-import type { BackupEntry, ToolInstallationReport } from "../settings";
+import type {
+  BackupEntry,
+  ToolInstallationReport,
+  RectifierConfig,
+  OptimizerConfig,
+  LogConfig,
+} from "../settings";
 
 export interface ConfigTransferResult {
   success: boolean;
@@ -22,17 +28,6 @@ export interface WebDavTestResult {
 
 export interface WebDavSyncResult {
   status: string;
-}
-
-export interface RectifierConfig {
-  enabled: boolean;
-  requestThinkingSignature: boolean;
-  requestThinkingBudget: boolean;
-}
-
-export interface LogConfig {
-  enabled: boolean;
-  level: "error" | "warn" | "info" | "debug" | "trace";
 }
 
 export const settingsApi = {
@@ -252,6 +247,14 @@ export const settingsApi = {
 
   async setRectifierConfig(config: RectifierConfig): Promise<boolean> {
     return put("/settings/rectifier-config", config);
+  },
+
+  async getOptimizerConfig(): Promise<OptimizerConfig> {
+    return get("/settings/optimizer-config");
+  },
+
+  async setOptimizerConfig(config: OptimizerConfig): Promise<boolean> {
+    return put("/settings/optimizer-config", config);
   },
 
   async getLogConfig(): Promise<LogConfig> {

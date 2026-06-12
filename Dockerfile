@@ -105,7 +105,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     else \
         cargo build --release; \
     fi \
-    && cp /app/src-tauri/target/release/cc-switch /app/cc-switch
+    && cp target/release/cc-switch /usr/local/bin/cc-switch
 
 WORKDIR /app
 EXPOSE 3001

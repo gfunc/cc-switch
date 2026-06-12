@@ -68,6 +68,8 @@ pub fn create_router(state: Arc<AppState>, ws_state: Arc<WsState>) -> Router {
         .nest("/skills", routes::skills::routes())
         .nest("/sessions", routes::sessions::routes())
         .nest("/proxy", routes::proxy::routes())
+        .nest("/hermes", routes::hermes::routes())
+        .nest("/openclaw", routes::openclaw::routes())
         .layer(axum::middleware::from_fn(middleware::auth_middleware))
         .with_state(shared_state.clone());
     let api_routes = Router::new()
