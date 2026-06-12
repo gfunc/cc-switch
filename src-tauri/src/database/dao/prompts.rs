@@ -8,49 +8,74 @@ use crate::prompt::Prompt;
 use indexmap::IndexMap;
 use rusqlite::params;
 
+/// Maps a row in the `prompts` table to a `Prompt` struct.
+///
+/// Expected column order: `id, app_type, name, content, description, enabled, created_at, updated_at`.
+fn row_to_prompt(row: &rusqlite::Row) -> rusqlite::Result<Prompt> {
+    let id: String = row.get(0)?;
+    let app_type: String = row.get(1)?;
+    let name: String = row.get(2)?;
+    let content: String = row.get(3)?;
+    let description: Option<String> = row.get(4)?;
+    let enabled: bool = row.get(5)?;
+    let created_at: Option<i64> = row.get(6)?;
+    let updated_at: Option<i64> = row.get(7)?;
+
+    Ok(Prompt {
+        id,
+        app_type,
+        name,
+        content,
+        description,
+        enabled,
+        created_at,
+        updated_at,
+    })
+}
+
 impl Database {
     /// 获取指定应用类型的所有提示词
     pub fn get_prompts(&self, app_type: &str) -> Result<IndexMap<String, Prompt>, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn
             .prepare(
-                "SELECT id, name, content, description, enabled, created_at, updated_at
+                "SELECT id, app_type, name, content, description, enabled, created_at, updated_at
              FROM prompts WHERE app_type = ?1
              ORDER BY created_at ASC, id ASC",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let prompt_iter = stmt
-            .query_map(params![app_type], |row| {
-                let id: String = row.get(0)?;
-                let name: String = row.get(1)?;
-                let content: String = row.get(2)?;
-                let description: Option<String> = row.get(3)?;
-                let enabled: bool = row.get(4)?;
-                let created_at: Option<i64> = row.get(5)?;
-                let updated_at: Option<i64> = row.get(6)?;
-
-                Ok((
-                    id.clone(),
-                    Prompt {
-                        id,
-                        name,
-                        content,
-                        description,
-                        enabled,
-                        created_at,
-                        updated_at,
-                    },
-                ))
-            })
+            .query_map(params![app_type], row_to_prompt)
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut prompts = IndexMap::new();
         for prompt_res in prompt_iter {
-            let (id, prompt) = prompt_res.map_err(|e| AppError::Database(e.to_string()))?;
-            prompts.insert(id, prompt);
+            let prompt = prompt_res.map_err(|e| AppError::Database(e.to_string()))?;
+            prompts.insert(prompt.id.clone(), prompt);
         }
         Ok(prompts)
+    }
+
+    /// 根据 id 查找提示词（任意 app_type 下的唯一一条）
+    pub fn get_prompt_by_id(&self, id: &str) -> Result<Option<Prompt>, AppError> {
+        let conn = lock_conn!(self.conn);
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, app_type, name, content, description, enabled, created_at, updated_at
+             FROM prompts WHERE id = ?1
+             LIMIT 1",
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut rows = stmt
+            .query_map(params![id], row_to_prompt)
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        match rows.next() {
+            Some(row_res) => row_res
+                .map(Some)
+                .map_err(|e| AppError::Database(e.to_string())),
+            None => Ok(None),
+        }
     }
 
     /// 保存提示词
