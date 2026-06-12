@@ -395,6 +395,7 @@ mod tests {
             Some(2),
         ));
 
+        drop(stmt);
         drop(db);
         let _ = std::fs::remove_file(&db_path);
     }
