@@ -1889,6 +1889,21 @@ pub fn import_hermes_providers_from_live(state: &AppState) -> Result<usize, AppE
 
     let providers = hermes_config::get_providers()?;
     if providers.is_empty() {
+        // Help diagnose the common "no providers imported" case: most often the
+        // config file simply isn't where we're looking (e.g. a Docker home mount
+        // pointing at the wrong path), not an actual empty Hermes install.
+        let config_path = hermes_config::get_hermes_config_path();
+        if config_path.exists() {
+            log::info!(
+                "Hermes import: config at {} has no custom_providers/providers entries",
+                config_path.display()
+            );
+        } else {
+            log::warn!(
+                "Hermes import: no config found at {} — if running in Docker, ensure the host home is mounted (HOST_HOME)",
+                config_path.display()
+            );
+        }
         return Ok(0);
     }
 
