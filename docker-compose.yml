@@ -21,7 +21,13 @@ services:
     ports:
       - "${WEBSITE_PORT:-13001}:13001"
     volumes:
-      - ${HOST_HOME:-~}:/host-home
+      # Mount the host home so the server can read live app configs
+      # (~/.hermes, ~/.claude, ~/.codex, …). Default to the shell's $HOME:
+      # Compose interpolates ${HOME} reliably, whereas a literal "~" is not
+      # portably expanded by Compose and silently mounts the wrong path —
+      # which makes "import current config" find no providers. Override with
+      # HOST_HOME when running detached/rootless or as another user.
+      - ${HOST_HOME:-${HOME}}:/host-home
       - ./src-tauri/db:/data/db
     command: /usr/local/bin/cc-switch
     restart: unless-stopped

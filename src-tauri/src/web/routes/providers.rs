@@ -64,6 +64,98 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/import-default", post(import_default_config))
         .route("/import-upload", post(import_from_upload))
         .route("/fetch-models", post(fetch_models_for_config))
+        .route("/usage/test", post(test_usage_script))
+        .route("/usage/query", post(query_provider_usage))
+}
+
+#[derive(Deserialize)]
+struct TestUsageScriptRequest {
+    #[serde(rename = "providerId")]
+    provider_id: String,
+    app: String,
+    #[serde(rename = "scriptCode")]
+    script_code: String,
+    timeout: Option<u64>,
+    #[serde(rename = "apiKey")]
+    api_key: Option<String>,
+    #[serde(rename = "baseUrl")]
+    base_url: Option<String>,
+    #[serde(rename = "accessToken")]
+    access_token: Option<String>,
+    #[serde(rename = "userId")]
+    user_id: Option<String>,
+    #[serde(rename = "templateType")]
+    template_type: Option<String>,
+}
+
+/// Test a usage-query script (web mirror of the Tauri `testUsageScript` command).
+async fn test_usage_script(
+    State((state, _ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(req): Json<TestUsageScriptRequest>,
+) -> Json<ApiResponse<crate::provider::UsageResult>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    let app_type = match AppType::from_str(&req.app) {
+        Ok(t) => t,
+        Err(e) => return Json(ApiResponse::error(e.to_string())),
+    };
+
+    match crate::services::provider::ProviderService::test_usage_script(
+        &desktop,
+        app_type,
+        &req.provider_id,
+        &req.script_code,
+        req.timeout.unwrap_or(10),
+        req.api_key.as_deref(),
+        req.base_url.as_deref(),
+        req.access_token.as_deref(),
+        req.user_id.as_deref(),
+        req.template_type.as_deref(),
+    )
+    .await
+    {
+        Ok(result) => Json(ApiResponse::success(result)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
+#[derive(Deserialize)]
+struct QueryUsageRequest {
+    #[serde(rename = "providerId")]
+    provider_id: String,
+    app: String,
+}
+
+/// Query a provider's usage via its saved script (web mirror of `queryProviderUsage`).
+///
+/// Covers the script-based templates (custom/general/newapi/balance). The
+/// Copilot-OAuth and coding-plan native paths are desktop-only and are not
+/// surfaced here.
+async fn query_provider_usage(
+    State((state, _ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(req): Json<QueryUsageRequest>,
+) -> Json<ApiResponse<crate::provider::UsageResult>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    let app_type = match AppType::from_str(&req.app) {
+        Ok(t) => t,
+        Err(e) => return Json(ApiResponse::error(e.to_string())),
+    };
+
+    match crate::services::provider::ProviderService::query_usage(
+        &desktop,
+        app_type,
+        &req.provider_id,
+    )
+    .await
+    {
+        Ok(result) => Json(ApiResponse::success(result)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
 }
 
 #[derive(Deserialize)]
