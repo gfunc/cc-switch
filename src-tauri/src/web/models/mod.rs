@@ -267,12 +267,40 @@ pub struct Prompt {
     pub id: String,
     pub name: String,
     pub content: String,
-    #[serde(rename = "isActive")]
-    pub is_active: bool,
+    pub description: Option<String>,
+    #[serde(rename = "enabled")]
+    pub enabled: bool,
     #[serde(rename = "createdAt")]
-    pub created_at: i64,
+    pub created_at: Option<i64>,
     #[serde(rename = "updatedAt")]
-    pub updated_at: i64,
+    pub updated_at: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prompt_serializes_to_frontend_shape() {
+        let prompt = Prompt {
+            id: "p1".to_string(),
+            name: "Default".to_string(),
+            content: "# System".to_string(),
+            description: Some("desc".to_string()),
+            enabled: true,
+            created_at: Some(1),
+            updated_at: Some(2),
+        };
+        let json = serde_json::to_value(&prompt).unwrap();
+        assert_eq!(json["id"], "p1");
+        assert_eq!(json["name"], "Default");
+        assert_eq!(json["content"], "# System");
+        assert_eq!(json["description"], "desc");
+        assert_eq!(json["enabled"], true);
+        assert_eq!(json["createdAt"], 1);
+        assert_eq!(json["updatedAt"], 2);
+        assert!(json.get("isActive").is_none());
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
