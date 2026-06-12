@@ -1153,7 +1153,7 @@ function App() {
         }
       >
         <div
-          className="flex h-full items-center justify-between gap-2 px-6"
+          className="mx-auto flex h-full w-full max-w-screen-xl items-center justify-between gap-2 px-6"
           {...DRAG_REGION_ATTR}
           style={{ ...DRAG_REGION_STYLE } as any}
         >
@@ -1569,7 +1569,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1 min-h-0 flex flex-col overflow-y-auto animate-fade-in">
+      <main className="flex-1 min-h-0 w-full max-w-screen-xl mx-auto flex flex-col overflow-y-auto animate-fade-in">
         {isOpenClawView && openclawHealthWarnings.length > 0 && (
           <OpenClawHealthBanner warnings={openclawHealthWarnings} />
         )}

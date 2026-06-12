@@ -63,6 +63,48 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/sort", post(update_sort_order))
         .route("/import-default", post(import_default_config))
         .route("/import-upload", post(import_from_upload))
+        .route("/fetch-models", post(fetch_models_for_config))
+}
+
+#[derive(Deserialize)]
+struct FetchModelsRequest {
+    #[serde(rename = "baseUrl")]
+    base_url: String,
+    #[serde(rename = "apiKey")]
+    api_key: String,
+    #[serde(rename = "isFullUrl")]
+    is_full_url: Option<bool>,
+    #[serde(rename = "modelsUrl")]
+    models_url: Option<String>,
+    #[serde(rename = "customUserAgent")]
+    custom_user_agent: Option<String>,
+}
+
+/// Fetch a provider's available model list (OpenAI-compatible `/v1/models`).
+///
+/// Web mirror of the Tauri `fetch_models_for_config` command — the frontend
+/// `fetchModelsForConfig` routes here when running outside Tauri.
+async fn fetch_models_for_config(
+    State((_state, _ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(req): Json<FetchModelsRequest>,
+) -> Json<ApiResponse<Vec<crate::services::model_fetch::FetchedModel>>> {
+    // Mirror the desktop command: invalid UA is silently ignored, never blocks.
+    let user_agent = crate::provider::parse_custom_user_agent(req.custom_user_agent.as_deref())
+        .ok()
+        .flatten();
+
+    match crate::services::model_fetch::fetch_models(
+        &req.base_url,
+        &req.api_key,
+        req.is_full_url.unwrap_or(false),
+        req.models_url.as_deref(),
+        user_agent,
+    )
+    .await
+    {
+        Ok(models) => Json(ApiResponse::success(models)),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
 async fn import_opencode_live(

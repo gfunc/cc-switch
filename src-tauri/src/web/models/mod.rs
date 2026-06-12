@@ -208,13 +208,27 @@ pub struct Settings {
     pub common_config_confirmed: Option<bool>,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisibleApps {
+    #[serde(default = "default_true")]
     pub claude: bool,
+    // Frontend uses the kebab-case key "claude-desktop"; keep it round-trippable.
+    #[serde(rename = "claude-desktop", default = "default_true")]
+    pub claude_desktop: bool,
+    #[serde(default = "default_true")]
     pub codex: bool,
+    #[serde(default = "default_true")]
     pub gemini: bool,
+    #[serde(default = "default_true")]
     pub opencode: bool,
+    #[serde(default = "default_true")]
     pub openclaw: bool,
+    #[serde(default = "default_true")]
+    pub hermes: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
