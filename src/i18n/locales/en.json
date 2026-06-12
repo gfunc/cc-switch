@@ -3,6 +3,10 @@
     "title": "CC Switch",
     "description": "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
   },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "A part of this page failed to load. Try refreshing, or contact support if the problem persists."
+  },
   "common": {
     "add": "Add",
     "edit": "Edit",

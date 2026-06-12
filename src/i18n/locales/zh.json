@@ -3,6 +3,10 @@
     "title": "CC Switch",
     "description": "Claude Code / Codex / Gemini CLI 全方位辅助工具"
   },
+  "errorBoundary": {
+    "title": "出错了",
+    "description": "页面部分内容加载失败。请尝试刷新，如果问题仍然存在请联系支持。"
+  },
   "common": {
     "add": "添加",
     "edit": "编辑",

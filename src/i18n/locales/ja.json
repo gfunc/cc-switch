@@ -3,6 +3,10 @@
     "title": "CC Switch",
     "description": "Claude Code・Codex・Gemini CLI のためのオールインワンアシスタント"
   },
+  "errorBoundary": {
+    "title": "エラーが発生しました",
+    "description": "ページの一部の読み込みに失敗しました。更新してみるか、問題が続く場合はサポートにお問い合わせください。"
+  },
   "common": {
     "add": "追加",
     "edit": "編集",

@@ -60,6 +60,7 @@ import {
   setCodexModelName as setCodexModelNameInConfig,
 } from "@/utils/providerConfigUtils";
 import { isNonNegativeDecimalString } from "@/types/usage";
+import { generateUUID } from "@/utils/uuid";
 import { getCodexCustomTemplate } from "@/config/codexTemplates";
 import CodexConfigEditor from "./CodexConfigEditor";
 import { CommonConfigEditor } from "./CommonConfigEditor";
@@ -70,6 +71,7 @@ import { ProviderPresetSelector } from "./ProviderPresetSelector";
 import { BasicFormFields } from "./BasicFormFields";
 import { ClaudeFormFields } from "./ClaudeFormFields";
 import { ClaudeDesktopProviderForm } from "./ClaudeDesktopProviderForm";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { CodexFormFields } from "./CodexFormFields";
 import { GeminiFormFields } from "./GeminiFormFields";
 import { OmoFormFields } from "./OmoFormFields";
@@ -1284,7 +1286,7 @@ function ProviderFormFull({
       if (isAnyOmoCategory) {
         if (!isEditMode) {
           const prefix = category === "omo" ? "omo" : "omo-slim";
-          payload.providerKey = `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+          payload.providerKey = `${prefix}-${generateUUID().slice(0, 8)}`;
         }
       } else {
         payload.providerKey = opencodeForm.opencodeProviderKey;
@@ -1964,228 +1966,245 @@ function ProviderFormFull({
           />
 
           {appId === "claude" && (
-            <ClaudeFormFields
-              providerId={providerId}
-              shouldShowApiKey={
-                (category !== "cloud_provider" ||
-                  hasApiKeyField(form.getValues("settingsConfig"), "claude")) &&
-                shouldShowApiKey(form.getValues("settingsConfig"), isEditMode)
-              }
-              apiKey={apiKey}
-              onApiKeyChange={handleApiKeyChange}
-              category={category}
-              shouldShowApiKeyLink={shouldShowClaudeApiKeyLink}
-              websiteUrl={claudeWebsiteUrl}
-              isPartner={isClaudePartner}
-              partnerPromotionKey={claudePartnerPromotionKey}
-              isCopilotPreset={
-                templatePreset?.providerType === "github_copilot" ||
-                initialData?.meta?.providerType === "github_copilot" ||
-                baseUrl.includes("githubcopilot.com")
-              }
-              isCodexOauthPreset={
-                templatePreset?.providerType === "codex_oauth" ||
-                initialData?.meta?.providerType === "codex_oauth"
-              }
-              usesOAuth={
-                templatePreset?.requiresOAuth === true ||
-                templatePreset?.providerType === "github_copilot" ||
-                initialData?.meta?.providerType === "github_copilot" ||
-                baseUrl.includes("githubcopilot.com") ||
-                templatePreset?.providerType === "codex_oauth" ||
-                initialData?.meta?.providerType === "codex_oauth"
-              }
-              isCopilotAuthenticated={isCopilotAuthenticated}
-              selectedGitHubAccountId={selectedGitHubAccountId}
-              onGitHubAccountSelect={setSelectedGitHubAccountId}
-              isCodexOauthAuthenticated={isCodexOauthAuthenticated}
-              selectedCodexAccountId={selectedCodexAccountId}
-              onCodexAccountSelect={setSelectedCodexAccountId}
-              codexFastMode={codexFastMode}
-              onCodexFastModeChange={setCodexFastMode}
-              templateValueEntries={templateValueEntries}
-              templateValues={templateValues}
-              templatePresetName={templatePreset?.name || ""}
-              onTemplateValueChange={handleTemplateValueChange}
-              shouldShowSpeedTest={shouldShowSpeedTest}
-              baseUrl={baseUrl}
-              onBaseUrlChange={handleClaudeBaseUrlChange}
-              isEndpointModalOpen={isEndpointModalOpen}
-              onEndpointModalToggle={setIsEndpointModalOpen}
-              onCustomEndpointsChange={
-                isEditMode ? undefined : setDraftCustomEndpoints
-              }
-              autoSelect={endpointAutoSelect}
-              onAutoSelectChange={setEndpointAutoSelect}
-              showEndpointTools
-              shouldShowModelSelector={category !== "official"}
-              claudeModel={claudeModel}
-              defaultHaikuModel={defaultHaikuModel}
-              defaultHaikuModelName={defaultHaikuModelName}
-              defaultSonnetModel={defaultSonnetModel}
-              defaultSonnetModelName={defaultSonnetModelName}
-              defaultOpusModel={defaultOpusModel}
-              defaultOpusModelName={defaultOpusModelName}
-              onModelChange={handleModelChange}
-              speedTestEndpoints={speedTestEndpoints}
-              apiFormat={localApiFormat}
-              onApiFormatChange={handleApiFormatChange}
-              apiKeyField={localApiKeyField}
-              onApiKeyFieldChange={handleApiKeyFieldChange}
-              isFullUrl={localIsFullUrl}
-              onFullUrlChange={setLocalIsFullUrl}
-              customUserAgent={customUserAgent}
-              onCustomUserAgentChange={setCustomUserAgent}
-            />
+            <ErrorBoundary>
+              <ClaudeFormFields
+                providerId={providerId}
+                shouldShowApiKey={
+                  (category !== "cloud_provider" ||
+                    hasApiKeyField(
+                      form.getValues("settingsConfig"),
+                      "claude",
+                    )) &&
+                  shouldShowApiKey(form.getValues("settingsConfig"), isEditMode)
+                }
+                apiKey={apiKey}
+                onApiKeyChange={handleApiKeyChange}
+                category={category}
+                shouldShowApiKeyLink={shouldShowClaudeApiKeyLink}
+                websiteUrl={claudeWebsiteUrl}
+                isPartner={isClaudePartner}
+                partnerPromotionKey={claudePartnerPromotionKey}
+                isCopilotPreset={
+                  templatePreset?.providerType === "github_copilot" ||
+                  initialData?.meta?.providerType === "github_copilot" ||
+                  baseUrl.includes("githubcopilot.com")
+                }
+                isCodexOauthPreset={
+                  templatePreset?.providerType === "codex_oauth" ||
+                  initialData?.meta?.providerType === "codex_oauth"
+                }
+                usesOAuth={
+                  templatePreset?.requiresOAuth === true ||
+                  templatePreset?.providerType === "github_copilot" ||
+                  initialData?.meta?.providerType === "github_copilot" ||
+                  baseUrl.includes("githubcopilot.com") ||
+                  templatePreset?.providerType === "codex_oauth" ||
+                  initialData?.meta?.providerType === "codex_oauth"
+                }
+                isCopilotAuthenticated={isCopilotAuthenticated}
+                selectedGitHubAccountId={selectedGitHubAccountId}
+                onGitHubAccountSelect={setSelectedGitHubAccountId}
+                isCodexOauthAuthenticated={isCodexOauthAuthenticated}
+                selectedCodexAccountId={selectedCodexAccountId}
+                onCodexAccountSelect={setSelectedCodexAccountId}
+                codexFastMode={codexFastMode}
+                onCodexFastModeChange={setCodexFastMode}
+                templateValueEntries={templateValueEntries}
+                templateValues={templateValues}
+                templatePresetName={templatePreset?.name || ""}
+                onTemplateValueChange={handleTemplateValueChange}
+                shouldShowSpeedTest={shouldShowSpeedTest}
+                baseUrl={baseUrl}
+                onBaseUrlChange={handleClaudeBaseUrlChange}
+                isEndpointModalOpen={isEndpointModalOpen}
+                onEndpointModalToggle={setIsEndpointModalOpen}
+                onCustomEndpointsChange={
+                  isEditMode ? undefined : setDraftCustomEndpoints
+                }
+                autoSelect={endpointAutoSelect}
+                onAutoSelectChange={setEndpointAutoSelect}
+                showEndpointTools
+                shouldShowModelSelector={category !== "official"}
+                claudeModel={claudeModel}
+                defaultHaikuModel={defaultHaikuModel}
+                defaultHaikuModelName={defaultHaikuModelName}
+                defaultSonnetModel={defaultSonnetModel}
+                defaultSonnetModelName={defaultSonnetModelName}
+                defaultOpusModel={defaultOpusModel}
+                defaultOpusModelName={defaultOpusModelName}
+                onModelChange={handleModelChange}
+                speedTestEndpoints={speedTestEndpoints}
+                apiFormat={localApiFormat}
+                onApiFormatChange={handleApiFormatChange}
+                apiKeyField={localApiKeyField}
+                onApiKeyFieldChange={handleApiKeyFieldChange}
+                isFullUrl={localIsFullUrl}
+                onFullUrlChange={setLocalIsFullUrl}
+                customUserAgent={customUserAgent}
+                onCustomUserAgentChange={setCustomUserAgent}
+              />
+            </ErrorBoundary>
           )}
 
           {appId === "codex" && (
-            <CodexFormFields
-              providerId={providerId}
-              codexApiKey={codexApiKey}
-              onApiKeyChange={handleCodexApiKeyChange}
-              category={category}
-              shouldShowApiKeyLink={shouldShowCodexApiKeyLink}
-              websiteUrl={codexWebsiteUrl}
-              isPartner={isCodexPartner}
-              partnerPromotionKey={codexPartnerPromotionKey}
-              shouldShowSpeedTest={shouldShowSpeedTest}
-              codexBaseUrl={codexBaseUrl}
-              onBaseUrlChange={handleCodexBaseUrlChange}
-              isFullUrl={localIsFullUrl}
-              onFullUrlChange={setLocalIsFullUrl}
-              isEndpointModalOpen={isCodexEndpointModalOpen}
-              onEndpointModalToggle={setIsCodexEndpointModalOpen}
-              onCustomEndpointsChange={
-                isEditMode ? undefined : setDraftCustomEndpoints
-              }
-              autoSelect={endpointAutoSelect}
-              onAutoSelectChange={setEndpointAutoSelect}
-              apiFormat={localCodexApiFormat}
-              onApiFormatChange={handleCodexApiFormatChange}
-              codexChatReasoning={codexChatReasoning}
-              onCodexChatReasoningChange={setCodexChatReasoning}
-              catalogModels={codexCatalogModels}
-              onCatalogModelsChange={setCodexCatalogModels}
-              speedTestEndpoints={speedTestEndpoints}
-              customUserAgent={customUserAgent}
-              onCustomUserAgentChange={setCustomUserAgent}
-            />
+            <ErrorBoundary>
+              <CodexFormFields
+                providerId={providerId}
+                codexApiKey={codexApiKey}
+                onApiKeyChange={handleCodexApiKeyChange}
+                category={category}
+                shouldShowApiKeyLink={shouldShowCodexApiKeyLink}
+                websiteUrl={codexWebsiteUrl}
+                isPartner={isCodexPartner}
+                partnerPromotionKey={codexPartnerPromotionKey}
+                shouldShowSpeedTest={shouldShowSpeedTest}
+                codexBaseUrl={codexBaseUrl}
+                onBaseUrlChange={handleCodexBaseUrlChange}
+                isFullUrl={localIsFullUrl}
+                onFullUrlChange={setLocalIsFullUrl}
+                isEndpointModalOpen={isCodexEndpointModalOpen}
+                onEndpointModalToggle={setIsCodexEndpointModalOpen}
+                onCustomEndpointsChange={
+                  isEditMode ? undefined : setDraftCustomEndpoints
+                }
+                autoSelect={endpointAutoSelect}
+                onAutoSelectChange={setEndpointAutoSelect}
+                apiFormat={localCodexApiFormat}
+                onApiFormatChange={handleCodexApiFormatChange}
+                codexChatReasoning={codexChatReasoning}
+                onCodexChatReasoningChange={setCodexChatReasoning}
+                catalogModels={codexCatalogModels}
+                onCatalogModelsChange={setCodexCatalogModels}
+                speedTestEndpoints={speedTestEndpoints}
+                customUserAgent={customUserAgent}
+                onCustomUserAgentChange={setCustomUserAgent}
+              />
+            </ErrorBoundary>
           )}
 
           {appId === "gemini" && (
-            <GeminiFormFields
-              providerId={providerId}
-              shouldShowApiKey={shouldShowApiKey(
-                form.getValues("settingsConfig"),
-                isEditMode,
-              )}
-              apiKey={geminiApiKey}
-              onApiKeyChange={handleGeminiApiKeyChange}
-              category={category}
-              shouldShowApiKeyLink={shouldShowGeminiApiKeyLink}
-              websiteUrl={geminiWebsiteUrl}
-              isPartner={isGeminiPartner}
-              partnerPromotionKey={geminiPartnerPromotionKey}
-              shouldShowSpeedTest={shouldShowSpeedTest}
-              baseUrl={geminiBaseUrl}
-              onBaseUrlChange={handleGeminiBaseUrlChange}
-              isEndpointModalOpen={isEndpointModalOpen}
-              onEndpointModalToggle={setIsEndpointModalOpen}
-              onCustomEndpointsChange={setDraftCustomEndpoints}
-              autoSelect={endpointAutoSelect}
-              onAutoSelectChange={setEndpointAutoSelect}
-              shouldShowModelField={true}
-              model={geminiModel}
-              onModelChange={handleGeminiModelChange}
-              speedTestEndpoints={speedTestEndpoints}
-            />
+            <ErrorBoundary>
+              <GeminiFormFields
+                providerId={providerId}
+                shouldShowApiKey={shouldShowApiKey(
+                  form.getValues("settingsConfig"),
+                  isEditMode,
+                )}
+                apiKey={geminiApiKey}
+                onApiKeyChange={handleGeminiApiKeyChange}
+                category={category}
+                shouldShowApiKeyLink={shouldShowGeminiApiKeyLink}
+                websiteUrl={geminiWebsiteUrl}
+                isPartner={isGeminiPartner}
+                partnerPromotionKey={geminiPartnerPromotionKey}
+                shouldShowSpeedTest={shouldShowSpeedTest}
+                baseUrl={geminiBaseUrl}
+                onBaseUrlChange={handleGeminiBaseUrlChange}
+                isEndpointModalOpen={isEndpointModalOpen}
+                onEndpointModalToggle={setIsEndpointModalOpen}
+                onCustomEndpointsChange={setDraftCustomEndpoints}
+                autoSelect={endpointAutoSelect}
+                onAutoSelectChange={setEndpointAutoSelect}
+                shouldShowModelField={true}
+                model={geminiModel}
+                onModelChange={handleGeminiModelChange}
+                speedTestEndpoints={speedTestEndpoints}
+              />
+            </ErrorBoundary>
           )}
 
           {appId === "opencode" && !isAnyOmoCategory && (
-            <OpenCodeFormFields
-              npm={opencodeForm.opencodeNpm}
-              onNpmChange={opencodeForm.handleOpencodeNpmChange}
-              apiKey={opencodeForm.opencodeApiKey}
-              onApiKeyChange={opencodeForm.handleOpencodeApiKeyChange}
-              category={category}
-              shouldShowApiKeyLink={shouldShowOpencodeApiKeyLink}
-              websiteUrl={opencodeWebsiteUrl}
-              isPartner={isOpencodePartner}
-              partnerPromotionKey={opencodePartnerPromotionKey}
-              baseUrl={opencodeForm.opencodeBaseUrl}
-              onBaseUrlChange={opencodeForm.handleOpencodeBaseUrlChange}
-              models={opencodeForm.opencodeModels}
-              onModelsChange={opencodeForm.handleOpencodeModelsChange}
-              extraOptions={opencodeForm.opencodeExtraOptions}
-              onExtraOptionsChange={
-                opencodeForm.handleOpencodeExtraOptionsChange
-              }
-            />
+            <ErrorBoundary>
+              <OpenCodeFormFields
+                npm={opencodeForm.opencodeNpm}
+                onNpmChange={opencodeForm.handleOpencodeNpmChange}
+                apiKey={opencodeForm.opencodeApiKey}
+                onApiKeyChange={opencodeForm.handleOpencodeApiKeyChange}
+                category={category}
+                shouldShowApiKeyLink={shouldShowOpencodeApiKeyLink}
+                websiteUrl={opencodeWebsiteUrl}
+                isPartner={isOpencodePartner}
+                partnerPromotionKey={opencodePartnerPromotionKey}
+                baseUrl={opencodeForm.opencodeBaseUrl}
+                onBaseUrlChange={opencodeForm.handleOpencodeBaseUrlChange}
+                models={opencodeForm.opencodeModels}
+                onModelsChange={opencodeForm.handleOpencodeModelsChange}
+                extraOptions={opencodeForm.opencodeExtraOptions}
+                onExtraOptionsChange={
+                  opencodeForm.handleOpencodeExtraOptionsChange
+                }
+              />
+            </ErrorBoundary>
           )}
 
           {appId === "opencode" &&
             (category === "omo" || category === "omo-slim") && (
-              <OmoFormFields
-                modelOptions={omoModelOptions}
-                modelVariantsMap={omoModelVariantsMap}
-                presetMetaMap={omoPresetMetaMap}
-                agents={omoDraft.omoAgents}
-                onAgentsChange={omoDraft.setOmoAgents}
-                categories={
-                  category === "omo" ? omoDraft.omoCategories : undefined
-                }
-                onCategoriesChange={
-                  category === "omo" ? omoDraft.setOmoCategories : undefined
-                }
-                otherFieldsStr={omoDraft.omoOtherFieldsStr}
-                onOtherFieldsStrChange={omoDraft.setOmoOtherFieldsStr}
-                isSlim={category === "omo-slim"}
-              />
+              <ErrorBoundary>
+                <OmoFormFields
+                  modelOptions={omoModelOptions}
+                  modelVariantsMap={omoModelVariantsMap}
+                  presetMetaMap={omoPresetMetaMap}
+                  agents={omoDraft.omoAgents}
+                  onAgentsChange={omoDraft.setOmoAgents}
+                  categories={
+                    category === "omo" ? omoDraft.omoCategories : undefined
+                  }
+                  onCategoriesChange={
+                    category === "omo" ? omoDraft.setOmoCategories : undefined
+                  }
+                  otherFieldsStr={omoDraft.omoOtherFieldsStr}
+                  onOtherFieldsStrChange={omoDraft.setOmoOtherFieldsStr}
+                  isSlim={category === "omo-slim"}
+                />
+              </ErrorBoundary>
             )}
 
           {/* OpenClaw 专属字段 */}
           {appId === "openclaw" && (
-            <OpenClawFormFields
-              baseUrl={openclawForm.openclawBaseUrl}
-              onBaseUrlChange={openclawForm.handleOpenclawBaseUrlChange}
-              apiKey={openclawForm.openclawApiKey}
-              onApiKeyChange={openclawForm.handleOpenclawApiKeyChange}
-              category={category}
-              shouldShowApiKeyLink={shouldShowOpenclawApiKeyLink}
-              websiteUrl={openclawWebsiteUrl}
-              isPartner={isOpenclawPartner}
-              partnerPromotionKey={openclawPartnerPromotionKey}
-              api={openclawForm.openclawApi}
-              onApiChange={openclawForm.handleOpenclawApiChange}
-              models={openclawForm.openclawModels}
-              onModelsChange={openclawForm.handleOpenclawModelsChange}
-              userAgent={openclawForm.openclawUserAgent}
-              onUserAgentChange={openclawForm.handleOpenclawUserAgentChange}
-            />
+            <ErrorBoundary>
+              <OpenClawFormFields
+                baseUrl={openclawForm.openclawBaseUrl}
+                onBaseUrlChange={openclawForm.handleOpenclawBaseUrlChange}
+                apiKey={openclawForm.openclawApiKey}
+                onApiKeyChange={openclawForm.handleOpenclawApiKeyChange}
+                category={category}
+                shouldShowApiKeyLink={shouldShowOpenclawApiKeyLink}
+                websiteUrl={openclawWebsiteUrl}
+                isPartner={isOpenclawPartner}
+                partnerPromotionKey={openclawPartnerPromotionKey}
+                api={openclawForm.openclawApi}
+                onApiChange={openclawForm.handleOpenclawApiChange}
+                models={openclawForm.openclawModels}
+                onModelsChange={openclawForm.handleOpenclawModelsChange}
+                userAgent={openclawForm.openclawUserAgent}
+                onUserAgentChange={openclawForm.handleOpenclawUserAgentChange}
+              />
+            </ErrorBoundary>
           )}
 
           {/* Hermes 专属字段 */}
           {appId === "hermes" && (
-            <HermesFormFields
-              baseUrl={hermesForm.hermesBaseUrl}
-              onBaseUrlChange={hermesForm.handleHermesBaseUrlChange}
-              apiKey={hermesForm.hermesApiKey}
-              onApiKeyChange={hermesForm.handleHermesApiKeyChange}
-              category={category}
-              shouldShowApiKeyLink={shouldShowHermesApiKeyLink}
-              websiteUrl={hermesWebsiteUrl}
-              isPartner={isHermesPartner}
-              partnerPromotionKey={hermesPartnerPromotionKey}
-              apiMode={hermesForm.hermesApiMode}
-              onApiModeChange={hermesForm.handleHermesApiModeChange}
-              models={hermesForm.hermesModels}
-              onModelsChange={hermesForm.handleHermesModelsChange}
-              rateLimitDelay={hermesForm.hermesRateLimitDelay}
-              onRateLimitDelayChange={
-                hermesForm.handleHermesRateLimitDelayChange
-              }
-            />
+            <ErrorBoundary>
+              <HermesFormFields
+                baseUrl={hermesForm.hermesBaseUrl}
+                onBaseUrlChange={hermesForm.handleHermesBaseUrlChange}
+                apiKey={hermesForm.hermesApiKey}
+                onApiKeyChange={hermesForm.handleHermesApiKeyChange}
+                category={category}
+                shouldShowApiKeyLink={shouldShowHermesApiKeyLink}
+                websiteUrl={hermesWebsiteUrl}
+                isPartner={isHermesPartner}
+                partnerPromotionKey={hermesPartnerPromotionKey}
+                apiMode={hermesForm.hermesApiMode}
+                onApiModeChange={hermesForm.handleHermesApiModeChange}
+                models={hermesForm.hermesModels}
+                onModelsChange={hermesForm.handleHermesModelsChange}
+                rateLimitDelay={hermesForm.hermesRateLimitDelay}
+                onRateLimitDelayChange={
+                  hermesForm.handleHermesRateLimitDelayChange
+                }
+              />
+            </ErrorBoundary>
           )}
 
           {/* 配置编辑器：Codex、Claude、Gemini 分别使用不同的编辑器 */}

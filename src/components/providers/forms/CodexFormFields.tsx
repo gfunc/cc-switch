@@ -33,6 +33,7 @@ import type {
   CodexChatReasoning,
   ProviderCategory,
 } from "@/types";
+import { generateUUID } from "@/utils/uuid";
 
 interface EndpointCandidate {
   url: string;
@@ -84,7 +85,7 @@ type CodexCatalogRow = CodexCatalogModel & { rowId: string };
 
 function createCatalogRow(seed?: Partial<CodexCatalogModel>): CodexCatalogRow {
   return {
-    rowId: crypto.randomUUID(),
+    rowId: generateUUID(),
     model: seed?.model ?? "",
     displayName: seed?.displayName ?? "",
     contextWindow: seed?.contextWindow ?? "",
