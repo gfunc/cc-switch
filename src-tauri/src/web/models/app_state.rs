@@ -20,6 +20,15 @@ impl AppState {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
         Self::init_schema(&mut conn)?;
+        // Repair legacy single-column PK on `providers` so it matches the
+        // desktop schema's composite key. The desktop `provider_endpoints`
+        // table (created on the same file via `desktop()`) declares
+        // `FOREIGN KEY (provider_id, app_type) REFERENCES providers(id, app_type)`,
+        // which SQLite cannot resolve unless `providers` has a UNIQUE key on
+        // exactly `(id, app_type)` — otherwise every DELETE raises
+        // "foreign key mismatch". This also makes per-app IDs unique instead of
+        // global (so e.g. each app can have a "default" provider).
+        Self::migrate_providers_primary_key(&conn)?;
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
@@ -28,11 +37,48 @@ impl AppState {
         })
     }
 
-    fn init_schema(conn: &mut Connection) -> SqliteResult<()> {
+    /// Rebuild `providers` with a composite `(id, app_type)` primary key when an
+    /// older database still has the single-column `id` PK.
+    ///
+    /// Idempotent: a no-op once the composite key is in place. Runs with foreign
+    /// keys temporarily disabled because the file may already contain the
+    /// desktop `provider_endpoints` table that references `providers`.
+    fn migrate_providers_primary_key(conn: &Connection) -> SqliteResult<()> {
+        // Collect the primary-key column set from PRAGMA table_info.
+        let mut pk_cols: Vec<String> = {
+            let mut stmt = conn.prepare("PRAGMA table_info(providers)")?;
+            let rows = stmt.query_map([], |row| {
+                let name: String = row.get(1)?; // column name
+                let pk: i64 = row.get(5)?; // pk position (0 = not part of pk)
+                Ok((name, pk))
+            })?;
+            let mut cols: Vec<(String, i64)> = Vec::new();
+            for r in rows {
+                let (name, pk) = r?;
+                if pk > 0 {
+                    cols.push((name, pk));
+                }
+            }
+            cols.sort_by_key(|(_, pk)| *pk);
+            cols.into_iter().map(|(name, _)| name).collect()
+        };
+        pk_cols.sort();
+
+        // Already composite (id, app_type) → nothing to do.
+        if pk_cols == ["app_type", "id"] {
+            return Ok(());
+        }
+
+        log::info!(
+            "Rebuilding web `providers` table to composite (id, app_type) primary key (was: {pk_cols:?})"
+        );
+
         conn.execute_batch(
             r#"
-            CREATE TABLE IF NOT EXISTS providers (
-                id TEXT PRIMARY KEY,
+            PRAGMA foreign_keys = OFF;
+            BEGIN;
+            CREATE TABLE providers_new (
+                id TEXT NOT NULL,
                 name TEXT NOT NULL,
                 settings_config TEXT NOT NULL,
                 website_url TEXT,
@@ -45,8 +91,48 @@ impl AppState {
                 icon TEXT,
                 icon_color TEXT,
                 in_failover_queue BOOLEAN,
-                app_type TEXT DEFAULT 'claude',
-                is_current BOOLEAN DEFAULT 0
+                app_type TEXT NOT NULL DEFAULT 'claude',
+                is_current BOOLEAN DEFAULT 0,
+                PRIMARY KEY (id, app_type)
+            );
+            INSERT OR IGNORE INTO providers_new
+                (id, name, settings_config, website_url, category, created_at,
+                 sort_index, notes, is_partner, meta, icon, icon_color,
+                 in_failover_queue, app_type, is_current)
+            SELECT id, name, settings_config, website_url, category, created_at,
+                   sort_index, notes, is_partner, meta, icon, icon_color,
+                   in_failover_queue, COALESCE(app_type, 'claude'), is_current
+            FROM providers;
+            DROP TABLE providers;
+            ALTER TABLE providers_new RENAME TO providers;
+            COMMIT;
+            PRAGMA foreign_keys = ON;
+            "#,
+        )?;
+
+        Ok(())
+    }
+
+    fn init_schema(conn: &mut Connection) -> SqliteResult<()> {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS providers (
+                id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                settings_config TEXT NOT NULL,
+                website_url TEXT,
+                category TEXT,
+                created_at INTEGER,
+                sort_index INTEGER,
+                notes TEXT,
+                is_partner BOOLEAN,
+                meta TEXT,
+                icon TEXT,
+                icon_color TEXT,
+                in_failover_queue BOOLEAN,
+                app_type TEXT NOT NULL DEFAULT 'claude',
+                is_current BOOLEAN DEFAULT 0,
+                PRIMARY KEY (id, app_type)
             );
 
             CREATE TABLE IF NOT EXISTS settings (

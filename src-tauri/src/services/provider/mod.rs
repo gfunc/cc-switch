@@ -2228,6 +2228,16 @@ impl ProviderService {
         usage::query_usage(state, app_type, provider_id).await
     }
 
+    /// Query usage with native-template dispatch (token_plan / balance /
+    /// official_subscription / script). Excludes Copilot (needs desktop state).
+    pub async fn query_usage_with_templates(
+        state: &AppState,
+        app_type: AppType,
+        provider_id: &str,
+    ) -> Result<UsageResult, AppError> {
+        usage::query_usage_with_templates(state, app_type, provider_id).await
+    }
+
     /// Test usage script (re-export)
     #[allow(clippy::too_many_arguments)]
     pub async fn test_usage_script(

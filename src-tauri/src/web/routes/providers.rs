@@ -66,6 +66,38 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/fetch-models", post(fetch_models_for_config))
         .route("/usage/test", post(test_usage_script))
         .route("/usage/query", post(query_provider_usage))
+        .route("/usage/balance", post(query_balance))
+        .route("/usage/coding-plan", post(query_coding_plan_quota))
+}
+
+#[derive(Deserialize)]
+struct CredentialQuotaRequest {
+    #[serde(rename = "baseUrl")]
+    base_url: String,
+    #[serde(rename = "apiKey")]
+    api_key: String,
+}
+
+/// Query official balance for a base_url/api_key (web mirror of `get_balance`).
+async fn query_balance(
+    State((_state, _ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(req): Json<CredentialQuotaRequest>,
+) -> Json<ApiResponse<crate::provider::UsageResult>> {
+    match crate::services::balance::get_balance(&req.base_url, &req.api_key).await {
+        Ok(result) => Json(ApiResponse::success(result)),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
+}
+
+/// Query coding-plan quota (web mirror of `get_coding_plan_quota`).
+async fn query_coding_plan_quota(
+    State((_state, _ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(req): Json<CredentialQuotaRequest>,
+) -> Json<ApiResponse<crate::services::subscription::SubscriptionQuota>> {
+    match crate::services::coding_plan::get_coding_plan_quota(&req.base_url, &req.api_key).await {
+        Ok(quota) => Json(ApiResponse::success(quota)),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
 }
 
 #[derive(Deserialize)]
@@ -146,7 +178,7 @@ async fn query_provider_usage(
         Err(e) => return Json(ApiResponse::error(e.to_string())),
     };
 
-    match crate::services::provider::ProviderService::query_usage(
+    match crate::services::provider::ProviderService::query_usage_with_templates(
         &desktop,
         app_type,
         &req.provider_id,
@@ -536,11 +568,11 @@ async fn import_from_upload(
             return Ok(false); // Providers already exist, skip import
         }
         
-        let provider_id = format!("imported_{}", chrono::Utc::now().timestamp());
+        let provider_id = format!("imported-{app}-{}", chrono::Utc::now().timestamp());
         let provider_name = format!("Imported {} Config", app);
         
         db.execute(
-            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type) 
+            "INSERT OR REPLACE INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             [
                 &provider_id,
@@ -742,11 +774,11 @@ async fn import_default_config(
             return Ok(false); // Do not fail hard when providers already exist
         }
 
-        let provider_id = "default".to_string();
+        let provider_id = format!("default-{app}");
         let provider_name = format!("Default {} Config", app);
 
         db.execute(
-            "INSERT INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type)
+            "INSERT OR REPLACE INTO providers (id, name, settings_config, website_url, category, created_at, sort_index, notes, is_partner, meta, icon, icon_color, in_failover_queue, app_type)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             [
                 &provider_id,
@@ -1046,10 +1078,25 @@ fn sync_updated_provider_runtime_state(
 async fn delete_provider(
     State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
     Path(id): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Json<ApiResponse<bool>> {
+    let app = params
+        .get("app")
+        .cloned()
+        .unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
     let result: Result<(), String> = state.with_db(|db: &Connection| {
-        db.execute("DELETE FROM providers WHERE id = ?1", [&id
-        ]).map_err(|e| e.to_string())?;
+        // Remove any child rows first so the delete works regardless of whether
+        // the desktop `provider_endpoints` table (with its FK) exists on this
+        // shared file. `execute` on a non-existent table errors, so ignore that.
+        let _ = db.execute(
+            "DELETE FROM provider_endpoints WHERE provider_id = ?1 AND app_type = ?2",
+            [&id, &app],
+        );
+        db.execute(
+            "DELETE FROM providers WHERE id = ?1 AND app_type = ?2",
+            [&id, &app],
+        )
+        .map_err(|e| e.to_string())?;
         Ok(())
     });
     
