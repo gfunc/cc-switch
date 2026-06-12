@@ -29,6 +29,7 @@ impl AppState {
         // "foreign key mismatch". This also makes per-app IDs unique instead of
         // global (so e.g. each app can have a "default" provider).
         Self::migrate_providers_primary_key(&conn)?;
+        Self::migrate_prompts_to_per_app(&conn)?;
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
@@ -113,6 +114,83 @@ impl AppState {
         Ok(())
     }
 
+    /// Rebuild `prompts` with app_type/description/enabled columns when an older
+    /// web database still has the single-column `id` primary key and `is_active`.
+    fn migrate_prompts_to_per_app(conn: &Connection) -> SqliteResult<()> {
+        // Collect primary-key columns to detect the legacy single-column PK.
+        let mut pk_cols: Vec<String> = {
+            let mut stmt = conn.prepare("PRAGMA table_info(prompts)")?;
+            let rows = stmt.query_map([], |row| {
+                let name: String = row.get(1)?;
+                let pk: i64 = row.get(5)?;
+                Ok((name, pk))
+            })?;
+            let mut cols: Vec<(String, i64)> = Vec::new();
+            for r in rows {
+                let (name, pk) = r?;
+                if pk > 0 {
+                    cols.push((name, pk));
+                }
+            }
+            cols.sort_by_key(|(_, pk)| *pk);
+            cols.into_iter().map(|(name, _)| name).collect()
+        };
+        pk_cols.sort();
+
+        if pk_cols == ["app_type", "id"] {
+            // Already has the composite key; ensure new columns exist for legacy web DBs.
+            let _ = conn.execute(
+                "ALTER TABLE prompts ADD COLUMN description TEXT",
+                [],
+            );
+            let _ = conn.execute(
+                "ALTER TABLE prompts ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT 1",
+                [],
+            );
+            return Ok(());
+        }
+
+        log::info!(
+            "Rebuilding web `prompts` table to composite (id, app_type) primary key (was: {pk_cols:?})"
+        );
+
+        conn.execute_batch(
+            r#"
+            PRAGMA foreign_keys = OFF;
+            BEGIN;
+            CREATE TABLE prompts_new (
+                id TEXT NOT NULL,
+                app_type TEXT NOT NULL DEFAULT 'claude',
+                name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                description TEXT,
+                enabled BOOLEAN NOT NULL DEFAULT 1,
+                created_at INTEGER,
+                updated_at INTEGER,
+                PRIMARY KEY (id, app_type)
+            );
+            INSERT INTO prompts_new
+                (id, app_type, name, content, description, enabled, created_at, updated_at)
+            SELECT
+                id,
+                'claude' AS app_type,
+                name,
+                content,
+                NULL AS description,
+                COALESCE(is_active, 0) AS enabled,
+                created_at,
+                updated_at
+            FROM prompts;
+            DROP TABLE prompts;
+            ALTER TABLE prompts_new RENAME TO prompts;
+            COMMIT;
+            PRAGMA foreign_keys = ON;
+            "#,
+        )?;
+
+        Ok(())
+    }
+
     fn init_schema(conn: &mut Connection) -> SqliteResult<()> {
         conn.execute_batch(
             r#"
@@ -156,12 +234,15 @@ impl AppState {
             );
 
             CREATE TABLE IF NOT EXISTS prompts (
-                id TEXT PRIMARY KEY,
+                id TEXT NOT NULL,
+                app_type TEXT NOT NULL DEFAULT 'claude',
                 name TEXT NOT NULL,
                 content TEXT NOT NULL,
-                is_active BOOLEAN DEFAULT 0,
+                description TEXT,
+                enabled BOOLEAN NOT NULL DEFAULT 1,
                 created_at INTEGER,
-                updated_at INTEGER
+                updated_at INTEGER,
+                PRIMARY KEY (id, app_type)
             );
 
             CREATE TABLE IF NOT EXISTS skills (
@@ -243,5 +324,78 @@ impl AppState {
         let state = Arc::new(crate::store::AppState::new(Arc::new(db)));
         *guard = Some(state.clone());
         Ok(state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env::temp_dir;
+
+    #[test]
+    fn legacy_prompts_table_gets_app_type_and_enabled_columns() {
+        let db_path = temp_dir().join(format!(
+            "cc-switch-prompt-migration-{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&db_path);
+
+        // Simulate an old web database created before this fix.
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                r#"
+                CREATE TABLE prompts (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT 0,
+                    created_at INTEGER,
+                    updated_at INTEGER
+                );
+                INSERT INTO prompts (id, name, content, is_active, created_at, updated_at)
+                VALUES ('old-1', 'Old', 'content', 1, 1, 2);
+                "#,
+            )
+            .unwrap();
+        }
+
+        // Re-open via AppState::new, which must migrate the table.
+        let state = AppState::new(db_path.to_str().unwrap()).unwrap();
+        let db = state.db.lock().unwrap();
+        let mut stmt = db
+            .prepare("SELECT id, app_type, name, content, description, enabled, created_at, updated_at FROM prompts")
+            .unwrap();
+        let rows: Vec<_> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0).unwrap(),
+                    row.get::<_, String>(1).unwrap(),
+                    row.get::<_, String>(2).unwrap(),
+                    row.get::<_, String>(3).unwrap(),
+                    row.get::<_, Option<String>>(4).unwrap(),
+                    row.get::<_, bool>(5).unwrap(),
+                    row.get::<_, Option<i64>>(6).unwrap(),
+                    row.get::<_, Option<i64>>(7).unwrap(),
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0], (
+            "old-1".to_string(),
+            "claude".to_string(),
+            "Old".to_string(),
+            "content".to_string(),
+            None,
+            true,
+            Some(1),
+            Some(2),
+        ));
+
+        drop(db);
+        let _ = std::fs::remove_file(&db_path);
     }
 }
