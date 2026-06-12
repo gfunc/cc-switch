@@ -104,7 +104,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
         cargo build --release --features "$CARGO_FEATURES"; \
     else \
         cargo build --release; \
-    fi
+    fi \
+    && cp target/release/cc-switch /usr/local/bin/cc-switch
 
 WORKDIR /app
 EXPOSE 3001
