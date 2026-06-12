@@ -610,6 +610,84 @@ fn migration_from_v3_8_schema_v1_to_current_schema_v3() {
     assert!(pricing_rows > 0, "model_pricing should be seeded");
 }
 
+/// Regression: a standalone Web/API-only server's `AppState::init_schema`
+/// created a divergent `skills` table (id/name/description/installed_at/
+/// updated_at/source/version) and left `user_version = 0`. When the desktop
+/// migrations later ran (e.g. on import of OpenClaw/Hermes config), the v2->v3
+/// migration crashed with `no such column: directory` because the snapshot
+/// query assumed the v2 `(directory, app_type, installed)` skills shape.
+///
+/// The defensive snapshot guard must let migrations complete and rebuild the
+/// skills table into the canonical v3+ structure instead of failing.
+#[test]
+fn migration_repairs_divergent_web_skills_schema() {
+    let conn = Connection::open_in_memory().expect("open in-memory db");
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .expect("enable foreign keys");
+
+    // Bespoke web schema: skills table without directory/app_type/installed.
+    conn.execute_batch(
+        r#"
+        CREATE TABLE skills (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            installed_at INTEGER,
+            updated_at INTEGER,
+            source TEXT,
+            version TEXT
+        );
+        "#,
+    )
+    .expect("seed divergent skills table");
+    conn.execute(
+        "INSERT INTO skills (id, name, installed_at) VALUES (?1, ?2, ?3)",
+        params!["legacy-skill", "Legacy Skill", 1_700_000_000i64],
+    )
+    .expect("seed divergent skill row");
+
+    // Standalone server never bumped user_version.
+    Database::set_user_version(&conn, 0).expect("set user_version=0");
+
+    // Startup flow: create canonical tables, then run migrations. This must not
+    // error out on the divergent skills table.
+    Database::create_tables_on_conn(&conn).expect("create tables");
+    Database::apply_schema_migrations_on_conn(&conn)
+        .expect("migrations should complete on divergent web skills schema");
+
+    assert_eq!(
+        Database::get_user_version(&conn).expect("user_version after migration"),
+        SCHEMA_VERSION
+    );
+
+    // skills should be rebuilt into the canonical v3+ structure.
+    assert!(
+        Database::has_column(&conn, "skills", "directory").expect("check skills.directory"),
+        "skills.directory should exist after migration"
+    );
+    assert!(
+        Database::has_column(&conn, "skills", "enabled_claude").expect("check skills.enabled_claude"),
+        "skills.enabled_claude should exist after migration"
+    );
+
+    // The snapshot for a non-v2 skills table is intentionally empty.
+    let snapshot: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'skills_ssot_migration_snapshot'",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+    let snapshot = snapshot.expect("skills migration snapshot should be recorded");
+    let snapshot_rows: serde_json::Value =
+        serde_json::from_str(&snapshot).expect("parse skills migration snapshot");
+    assert_eq!(
+        snapshot_rows.as_array().map(|rows| rows.len()),
+        Some(0),
+        "snapshot should be empty for a divergent (non-v2) skills table"
+    );
+}
+
 #[test]
 fn schema_dry_run_does_not_write_to_disk() {
     // Create minimal valid config for migration
