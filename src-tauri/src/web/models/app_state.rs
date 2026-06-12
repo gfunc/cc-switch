@@ -3,6 +3,14 @@ use std::sync::{Arc, Mutex};
 
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
+    /// Absolute path to the shared SQLite file. Used to lazily build a full
+    /// desktop [`crate::store::AppState`] for features that need the migrated
+    /// schema, DAOs and services (skills, claude-desktop, etc.).
+    db_path: String,
+    /// Lazily-constructed desktop application state. Shares the same on-disk
+    /// database file as `db` (a second connection), so advanced features reuse
+    /// the exact desktop logic instead of being reimplemented here.
+    desktop_state: Mutex<Option<Arc<crate::store::AppState>>>,
 }
 
 impl AppState {
@@ -15,6 +23,8 @@ impl AppState {
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
+            db_path: db_path.to_string(),
+            desktop_state: Mutex::new(None),
         })
     }
 
@@ -122,5 +132,30 @@ impl AppState {
     {
         let mut db = self.db.lock().unwrap();
         f(&mut db)
+    }
+
+    /// Lazily build (and cache) a full desktop [`crate::store::AppState`] backed
+    /// by the same SQLite file as this web state.
+    ///
+    /// This opens a second connection and runs the desktop schema migrations via
+    /// [`crate::database::Database::init_at_path`]. In the embedded Tauri web
+    /// server the file is already migrated by the desktop app, so this is a
+    /// no-op migration-wise; it simply unlocks the desktop DAOs and services for
+    /// feature parity (skills, claude-desktop, live imports, etc.).
+    pub fn desktop(&self) -> Result<Arc<crate::store::AppState>, String> {
+        let mut guard = self
+            .desktop_state
+            .lock()
+            .map_err(|e| format!("desktop state lock poisoned: {e}"))?;
+
+        if let Some(existing) = guard.as_ref() {
+            return Ok(existing.clone());
+        }
+
+        let db = crate::database::Database::init_at_path(std::path::Path::new(&self.db_path))
+            .map_err(|e| e.to_string())?;
+        let state = Arc::new(crate::store::AppState::new(Arc::new(db)));
+        *guard = Some(state.clone());
+        Ok(state)
     }
 }

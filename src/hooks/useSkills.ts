@@ -4,14 +4,14 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
-import {
-  skillsApi,
-  type SkillBackupEntry,
-  type DiscoverableSkill,
-  type ImportSkillSelection,
-  type InstalledSkill,
-  type SkillUpdateInfo,
-  type SkillsShSearchResult,
+import { skillsApi } from "@/lib/api";
+import type {
+  SkillBackupEntry,
+  DiscoverableSkill,
+  ImportSkillSelection,
+  InstalledSkill,
+  SkillUpdateInfo,
+  SkillsShSearchResult,
 } from "@/lib/api/skills";
 import type { AppId } from "@/lib/api/types";
 import { mergeImportedSkills } from "@/hooks/useSkills.helpers";

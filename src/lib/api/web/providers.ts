@@ -6,6 +6,7 @@ import type {
 } from "@/types";
 import type { AppId } from "./types";
 import type { ClaudeDesktopStatus, SwitchResult } from "../providers";
+import type { ClaudeDesktopDefaultRoute } from "../providers";
 
 export interface ProviderSortUpdate {
   id: string;
@@ -109,6 +110,10 @@ export const providersApi = {
 
   async getClaudeDesktopStatus(): Promise<ClaudeDesktopStatus> {
     return get("/providers/claude-desktop-status");
+  },
+
+  async getClaudeDesktopDefaultRoutes(): Promise<ClaudeDesktopDefaultRoute[]> {
+    return get("/providers/claude-desktop-default-routes");
   },
 
   async importOpenClawFromLive(): Promise<number> {

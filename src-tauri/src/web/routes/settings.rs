@@ -28,6 +28,12 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/common-config/:app_type", get(get_common_config_snippet))
         .route("/common-config/:app_type", put(set_common_config_snippet))
         .route("/common-config/extract", post(extract_common_config_snippet))
+        .route("/rectifier-config", get(get_rectifier_config))
+        .route("/rectifier-config", put(set_rectifier_config))
+        .route("/optimizer-config", get(get_optimizer_config))
+        .route("/optimizer-config", put(set_optimizer_config))
+        .route("/log-config", get(get_log_config))
+        .route("/log-config", put(set_log_config))
 }
 
 #[derive(Deserialize)]
@@ -323,5 +329,91 @@ async fn extract_common_config_snippet(
     ) {
         Ok(snippet) => Json(ApiResponse::success(snippet)),
         Err(error) => Json(ApiResponse::error(error.to_string())),
+    }
+}
+
+// ============================================================================
+// Rectifier / Optimizer / Log config (stored as JSON in the settings table,
+// mirroring the desktop DAO keys so both backends stay interchangeable).
+// ============================================================================
+
+async fn get_rectifier_config(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<crate::proxy::types::RectifierConfig>> {
+    let cfg = state.with_db(|db: &Connection| match get_setting_value(db, "rectifier_config") {
+        Ok(Some(json)) => serde_json::from_str(&json).unwrap_or_default(),
+        _ => crate::proxy::types::RectifierConfig::default(),
+    });
+    Json(ApiResponse::success(cfg))
+}
+
+async fn set_rectifier_config(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(config): Json<crate::proxy::types::RectifierConfig>,
+) -> Json<ApiResponse<bool>> {
+    let json = match serde_json::to_string(&config) {
+        Ok(j) => j,
+        Err(e) => return Json(ApiResponse::error(e.to_string())),
+    };
+    match state.with_db(|db: &Connection| set_setting_value(db, "rectifier_config", &json)) {
+        Ok(()) => Json(ApiResponse::success(true)),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
+}
+
+async fn get_optimizer_config(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<crate::proxy::types::OptimizerConfig>> {
+    let cfg = state.with_db(|db: &Connection| match get_setting_value(db, "optimizer_config") {
+        Ok(Some(json)) => serde_json::from_str(&json).unwrap_or_default(),
+        _ => crate::proxy::types::OptimizerConfig::default(),
+    });
+    Json(ApiResponse::success(cfg))
+}
+
+async fn set_optimizer_config(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(config): Json<crate::proxy::types::OptimizerConfig>,
+) -> Json<ApiResponse<bool>> {
+    // Validate cache_ttl: only allow known values (matches desktop command).
+    match config.cache_ttl.as_str() {
+        "5m" | "1h" => {}
+        other => {
+            return Json(ApiResponse::error(format!(
+                "Invalid cache_ttl value: '{other}'. Allowed values: '5m', '1h'"
+            )))
+        }
+    }
+    let json = match serde_json::to_string(&config) {
+        Ok(j) => j,
+        Err(e) => return Json(ApiResponse::error(e.to_string())),
+    };
+    match state.with_db(|db: &Connection| set_setting_value(db, "optimizer_config", &json)) {
+        Ok(()) => Json(ApiResponse::success(true)),
+        Err(e) => Json(ApiResponse::error(e)),
+    }
+}
+
+async fn get_log_config(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<crate::proxy::types::LogConfig>> {
+    let cfg = state.with_db(|db: &Connection| match get_setting_value(db, "log_config") {
+        Ok(Some(json)) => serde_json::from_str(&json).unwrap_or_default(),
+        _ => crate::proxy::types::LogConfig::default(),
+    });
+    Json(ApiResponse::success(cfg))
+}
+
+async fn set_log_config(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+    Json(config): Json<crate::proxy::types::LogConfig>,
+) -> Json<ApiResponse<bool>> {
+    let json = match serde_json::to_string(&config) {
+        Ok(j) => j,
+        Err(e) => return Json(ApiResponse::error(e.to_string())),
+    };
+    match state.with_db(|db: &Connection| set_setting_value(db, "log_config", &json)) {
+        Ok(()) => Json(ApiResponse::success(true)),
+        Err(e) => Json(ApiResponse::error(e)),
     }
 }

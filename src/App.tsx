@@ -41,7 +41,7 @@ import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
 import { hermesKeys, useOpenHermesWebUI } from "@/hooks/useHermes";
-import { hermesApi } from "@/lib/api/hermes";
+import { hermesApi } from "@/lib/api";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { useAutoCompact } from "@/hooks/useAutoCompact";
 import { useUsageCacheBridge } from "@/hooks/useUsageCacheBridge";
@@ -178,6 +178,12 @@ function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
+    // In web mode the data queries (providers, settings, etc.) mount before the
+    // auth token exists, so their first fetch 401s and caches an empty result.
+    // Invalidate everything once the token is set so the active observers
+    // refetch with credentials instead of showing the empty/init page until a
+    // manual page reload.
+    void queryClient.invalidateQueries();
   };
 
   const [activeApp, setActiveApp] = useState<AppId>(getInitialApp);

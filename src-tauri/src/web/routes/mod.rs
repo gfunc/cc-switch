@@ -1,6 +1,8 @@
 pub mod auth;
+pub mod hermes;
 pub mod logs;
 pub mod mcp;
+pub mod openclaw;
 pub mod prompts;
 pub mod providers;
 pub mod proxy;
