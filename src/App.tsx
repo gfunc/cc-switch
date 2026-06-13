@@ -282,9 +282,25 @@ function App() {
     return target?.provider_id;
   }, [proxyStatus?.active_targets, activeApp]);
 
-  const { data, isLoading, refetch } = useProvidersQuery(activeApp, {
-    isProxyRunning,
-  });
+  const { data, isLoading, refetch, error: providersError } = useProvidersQuery(
+    activeApp,
+    {
+      isProxyRunning,
+    },
+  );
+
+  useEffect(() => {
+    // In Tauri mode there's no auth redirect, so surface provider load failures
+    // explicitly. Web mode relies on the auth:expired handler to switch to login.
+    if (providersError && isTauri()) {
+      toast.error(
+        t("providers.loadError", {
+          defaultValue: "Failed to load providers: {{error}}",
+          error: providersError.message,
+        }),
+      );
+    }
+  }, [providersError, t, isTauri]);
   const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
   const isOpenClawView =
