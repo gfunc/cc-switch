@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@tauri-icons": path.resolve(__dirname, "./src-tauri/icons"),
     },
   },
   test: {

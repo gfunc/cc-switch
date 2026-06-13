@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Eye, Key, Loader2, Terminal } from "lucide-react";
+import logoSrc from "@tauri-icons/icon.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,9 +107,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <Card className="border-2 shadow-xl">
           <CardHeader className="space-y-1 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <span className="text-2xl font-bold text-white">CC</span>
-              </div>
+              <img
+                src={logoSrc}
+                alt={t("login.logoAlt", { defaultValue: "CC Switch" })}
+                className="w-16 h-16 rounded-full object-cover shadow-lg"
+              />
             </div>
             <CardTitle className="text-2xl font-bold">CC Switch</CardTitle>
             <CardDescription>

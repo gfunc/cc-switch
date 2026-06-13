@@ -21,6 +21,10 @@ const postMock = vi.fn();
 const setAuthTokenMock = vi.fn();
 const generateWebAdminTokenMock = vi.fn();
 
+vi.mock("@tauri-icons/icon.png", () => ({
+  default: "/mocked-icon.png",
+}));
+
 vi.mock("@/lib/api/web-client", () => ({
   post: (...args: unknown[]) => postMock(...args),
   setAuthToken: (...args: unknown[]) => setAuthTokenMock(...args),
@@ -156,6 +160,13 @@ describe("LoginPage Component", () => {
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledWith("login.error");
     });
+  });
+
+  it("renders the desktop logo image", () => {
+    renderLoginPage();
+    const logo = screen.getByRole("img", { name: "login.logoAlt" });
+    expect(logo).toBeInTheDocument();
+    expect(logo.getAttribute("src")).toContain("icon");
   });
 
   it("disables buttons during reveal and submit", async () => {
