@@ -17,6 +17,8 @@ COPY tsconfig.json tsconfig.node.json vite.config.ts postcss.config.cjs tailwind
 COPY src/index.html ./index.html
 COPY src ./src
 COPY assets ./assets
+# The login page imports the desktop icon through the @tauri-icons alias.
+COPY src-tauri/icons/icon.png ./src-tauri/icons/icon.png
 
 RUN pnpm install --no-frozen-lockfile
 RUN pnpm build:renderer
