@@ -87,10 +87,14 @@ export const useProvidersQuery = (
   });
 };
 
-export const useSettingsQuery = (): UseQueryResult<Settings> => {
+export const useSettingsQuery = (
+  options?: { enabled?: boolean },
+): UseQueryResult<Settings> => {
+  const { enabled = true } = options || {};
   return useQuery({
     queryKey: ["settings"],
     queryFn: async () => settingsApi.get(),
+    enabled,
   });
 };
 

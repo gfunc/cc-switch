@@ -92,6 +92,7 @@ import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getAuthToken } from "@/lib/api/web-client";
+import { useWebAuthSync } from "@/hooks/useWebAuthSync";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { TerminalModal } from "@/components/terminal";
 import { isTauri } from "@/lib/environment";
@@ -169,21 +170,19 @@ const getInitialView = (): View => {
 function App() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-
   // Web mode auth state - token auth for web, auto-authenticated for Tauri
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     if (isTauri()) return true; // Always authenticated in Tauri mode
     return !!getAuthToken();
   });
 
+  useWebAuthSync(isAuthenticated, setIsAuthenticated);
+
   const handleLogin = () => {
     setIsAuthenticated(true);
-    // In web mode the data queries (providers, settings, etc.) mount before the
-    // auth token exists, so their first fetch 401s and caches an empty result.
-    // Invalidate everything once the token is set so the active observers
-    // refetch with credentials instead of showing the empty/init page until a
-    // manual page reload.
-    void queryClient.invalidateQueries();
+    // Cached empty/401 data from before login must be removed so queries refetch
+    // with the new token instead of briefly showing the empty provider page.
+    queryClient.clear();
   };
 
   const [activeApp, setActiveApp] = useState<AppId>(getInitialApp);
@@ -198,7 +197,7 @@ function App() {
     localStorage.setItem(VIEW_STORAGE_KEY, currentView);
   }, [currentView]);
 
-  const { data: settingsData } = useSettingsQuery();
+  const { data: settingsData } = useSettingsQuery({ enabled: isAuthenticated });
   const useAppWindowControls =
     isLinux() && (settingsData?.useAppWindowControls ?? false);
   const dragBarHeight = useAppWindowControls ? 32 : DEFAULT_DRAG_BAR_HEIGHT;

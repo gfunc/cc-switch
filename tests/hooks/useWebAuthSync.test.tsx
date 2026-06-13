@@ -26,10 +26,8 @@ import { useWebAuthSync } from "@/hooks/useWebAuthSync";
 
 function TestHarness({
   initialAuth = false,
-  client,
 }: {
   initialAuth?: boolean;
-  client: QueryClient;
 }) {
   const [auth, setAuth] = useState(initialAuth);
   useWebAuthSync(auth, setAuth);
@@ -42,7 +40,7 @@ function renderHarness(initialAuth = false) {
     client,
     ...render(
       <QueryClientProvider client={client}>
-        <TestHarness initialAuth={initialAuth} client={client} />
+        <TestHarness initialAuth={initialAuth} />
       </QueryClientProvider>,
     ),
   };
