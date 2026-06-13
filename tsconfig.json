@@ -16,7 +16,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@tauri-icons/*": ["src-tauri/icons/*"]
     },
     "types": ["vitest/globals"]
   },
