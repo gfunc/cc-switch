@@ -82,9 +82,9 @@ export const useProvidersQuery = (
   });
 };
 
-export const useSettingsQuery = (
-  options?: { enabled?: boolean },
-): UseQueryResult<Settings> => {
+export const useSettingsQuery = (options?: {
+  enabled?: boolean;
+}): UseQueryResult<Settings> => {
   const { enabled = true } = options || {};
   return useQuery({
     queryKey: ["settings"],

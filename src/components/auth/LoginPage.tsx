@@ -71,7 +71,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     webLog.info("login: verifying token");
 
     try {
-      const { valid } = await post<{ valid: boolean }>("/auth/verify", { token: token.trim() });
+      const { valid } = await post<{ valid: boolean }>("/auth/verify", {
+        token: token.trim(),
+      });
 
       if (!valid) {
         throw new Error("Invalid token");

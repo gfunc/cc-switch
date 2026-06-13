@@ -184,7 +184,9 @@ describe("LoginPage Component", () => {
 
     renderLoginPage();
 
-    const revealButton = screen.getByRole("button", { name: "login.revealToken" });
+    const revealButton = screen.getByRole("button", {
+      name: "login.revealToken",
+    });
     const submitButton = screen.getByRole("button", { name: "login.submit" });
     const input = screen.getByPlaceholderText(
       "login.tokenPlaceholder",

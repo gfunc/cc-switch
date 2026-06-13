@@ -246,7 +246,9 @@ function App() {
 
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
-  const [terminalProvider, setTerminalProvider] = useState<Provider | null>(null);
+  const [terminalProvider, setTerminalProvider] = useState<Provider | null>(
+    null,
+  );
   const [confirmAction, setConfirmAction] = useState<{
     provider: Provider;
     action: "remove" | "delete";
@@ -282,12 +284,14 @@ function App() {
     return target?.provider_id;
   }, [proxyStatus?.active_targets, activeApp]);
 
-  const { data, isLoading, refetch, error: providersError } = useProvidersQuery(
-    activeApp,
-    {
-      isProxyRunning,
-    },
-  );
+  const {
+    data,
+    isLoading,
+    refetch,
+    error: providersError,
+  } = useProvidersQuery(activeApp, {
+    isProxyRunning,
+  });
 
   useEffect(() => {
     // In Tauri mode there's no auth redirect, so surface provider load failures

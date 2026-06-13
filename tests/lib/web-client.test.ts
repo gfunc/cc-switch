@@ -30,7 +30,8 @@ describe("web-client", () => {
     });
 
     it("clears token from memory and localStorage", async () => {
-      const { setAuthToken, clearAuthToken, getAuthToken } = await importWebClient();
+      const { setAuthToken, clearAuthToken, getAuthToken } =
+        await importWebClient();
       setAuthToken("my-token");
       clearAuthToken();
       expect(getAuthToken()).toBeNull();
@@ -49,9 +50,9 @@ describe("web-client", () => {
       const { setAuthToken, get } = await importWebClient();
       setAuthToken("bearer-token");
 
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        jsonResponse({ success: true, data: "ok" }),
-      );
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse({ success: true, data: "ok" }));
 
       await get("/test");
 
@@ -68,14 +69,17 @@ describe("web-client", () => {
     it("omits Authorization header when no token is set", async () => {
       const { get } = await importWebClient();
 
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        jsonResponse({ success: true, data: "ok" }),
-      );
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse({ success: true, data: "ok" }));
 
       await get("/test");
 
       const callArgs = fetchMock.mock.calls[0];
-      const headers = (callArgs[1] as RequestInit)?.headers as Record<string, string>;
+      const headers = (callArgs[1] as RequestInit)?.headers as Record<
+        string,
+        string
+      >;
       expect(headers).not.toHaveProperty("Authorization");
     });
 
@@ -86,9 +90,12 @@ describe("web-client", () => {
       const dispatchSpy = vi.spyOn(window, "dispatchEvent");
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-          status: 401,
-        }),
+        new Response(
+          JSON.stringify({ success: false, error: "Unauthorized" }),
+          {
+            status: 401,
+          },
+        ),
       );
 
       await expect(get("/test")).rejects.toThrow("Unauthorized");
@@ -112,9 +119,12 @@ describe("web-client", () => {
       });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
-          status: 401,
-        }),
+        new Response(
+          JSON.stringify({ success: false, error: "Unauthorized" }),
+          {
+            status: 401,
+          },
+        ),
       );
 
       try {
@@ -160,14 +170,19 @@ describe("web-client", () => {
         new Response("", { status: 500, statusText: "Internal Server Error" }),
       );
 
-      await expect(get("/test")).rejects.toThrow("HTTP 500 Internal Server Error");
+      await expect(get("/test")).rejects.toThrow(
+        "HTTP 500 Internal Server Error",
+      );
     });
 
     it("throws with HTTP status for invalid JSON", async () => {
       const { get } = await importWebClient();
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response("not json", { status: 200, headers: { "Content-Type": "application/json" } }),
+        new Response("not json", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       );
 
       await expect(get("/test")).rejects.toThrow("HTTP 200");
@@ -178,9 +193,9 @@ describe("web-client", () => {
     it("get uses GET method", async () => {
       const { get } = await importWebClient();
 
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        jsonResponse({ success: true, data: "ok" }),
-      );
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse({ success: true, data: "ok" }));
 
       await get("/test");
 
@@ -197,9 +212,9 @@ describe("web-client", () => {
     it("post uses POST method and serializes body", async () => {
       const { post } = await importWebClient();
 
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        jsonResponse({ success: true, data: "ok" }),
-      );
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse({ success: true, data: "ok" }));
 
       await post("/test", { name: "value" });
 
@@ -215,9 +230,9 @@ describe("web-client", () => {
     it("put uses PUT method and serializes body", async () => {
       const { put } = await importWebClient();
 
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        jsonResponse({ success: true, data: "ok" }),
-      );
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse({ success: true, data: "ok" }));
 
       await put("/test", { name: "value" });
 
@@ -233,9 +248,9 @@ describe("web-client", () => {
     it("del uses DELETE method", async () => {
       const { del } = await importWebClient();
 
-      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        jsonResponse({ success: true, data: "ok" }),
-      );
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(jsonResponse({ success: true, data: "ok" }));
 
       await del("/test");
 

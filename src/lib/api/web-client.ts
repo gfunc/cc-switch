@@ -1,5 +1,4 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 import { webLog } from "@/lib/webLogger";
 
@@ -91,7 +90,9 @@ async function parseApiEnvelope<T>(
 
   if (!responseText) {
     if (!isLogEndpoint) {
-      webLog.warn(`api empty body ${method} ${url}`, { status: response.status });
+      webLog.warn(`api empty body ${method} ${url}`, {
+        status: response.status,
+      });
     }
     throw new Error(`HTTP ${statusLabel}`);
   }
@@ -157,7 +158,7 @@ export async function del<T>(url: string): Promise<T> {
 export function connectWebSocket(
   onMessage: (data: unknown) => void,
 ): () => void {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/ws`;
   const ws = new WebSocket(wsUrl);
 
@@ -189,8 +190,6 @@ export function connectWebSocket(
   };
 }
 
-
-
 export function connectTerminalWebSocket(
   providerId: string,
   app: string,
@@ -203,12 +202,12 @@ export function connectTerminalWebSocket(
   resize: (cols: number, rows: number) => void;
   close: () => void;
 } {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const token = getAuthToken();
-  const wsUrl = `${protocol}//${window.location.host}/ws/terminal?provider=${encodeURIComponent(providerId)}&app=${encodeURIComponent(app)}&token=${encodeURIComponent(token || '')}`;
+  const wsUrl = `${protocol}//${window.location.host}/ws/terminal?provider=${encodeURIComponent(providerId)}&app=${encodeURIComponent(app)}&token=${encodeURIComponent(token || "")}`;
   const ws = new WebSocket(wsUrl);
 
-  ws.binaryType = 'arraybuffer';
+  ws.binaryType = "arraybuffer";
 
   let isReady = false;
 
@@ -221,10 +220,10 @@ export function connectTerminalWebSocket(
   };
 
   ws.onmessage = (event) => {
-    if (typeof event.data === 'string') {
+    if (typeof event.data === "string") {
       try {
         const data = JSON.parse(event.data);
-        if (data.status === 'ready') {
+        if (data.status === "ready") {
           isReady = true;
           onReady();
         } else if (data.error) {
@@ -245,7 +244,10 @@ export function connectTerminalWebSocket(
   };
 
   ws.onclose = () => {
-    webLog.info("terminal websocket disconnected", { provider: providerId, app });
+    webLog.info("terminal websocket disconnected", {
+      provider: providerId,
+      app,
+    });
     onClose();
   };
 
@@ -255,7 +257,7 @@ export function connectTerminalWebSocket(
       app,
       detail: String(error),
     });
-    onError('Connection error');
+    onError("Connection error");
   };
 
   return {

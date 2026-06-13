@@ -30,4 +30,3 @@ export default defineConfig(({ command }) => ({
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_"],
 }));
-

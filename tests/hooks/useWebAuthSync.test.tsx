@@ -24,11 +24,7 @@ vi.mock("@/lib/environment", () => ({
 
 import { useWebAuthSync } from "@/hooks/useWebAuthSync";
 
-function TestHarness({
-  initialAuth = false,
-}: {
-  initialAuth?: boolean;
-}) {
+function TestHarness({ initialAuth = false }: { initialAuth?: boolean }) {
   const [auth, setAuth] = useState(initialAuth);
   useWebAuthSync(auth, setAuth);
   return <div data-testid="auth-state">{auth ? "in" : "out"}</div>;
