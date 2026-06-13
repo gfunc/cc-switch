@@ -79,52 +79,49 @@ describe("web-client", () => {
       expect(headers).not.toHaveProperty("Authorization");
     });
 
-    it("clears token and redirects to /login on 401", async () => {
+    it("clears token and dispatches auth:expired on 401", async () => {
       const { setAuthToken, get, getAuthToken } = await importWebClient();
       setAuthToken("expired-token");
 
-      // Mock window.location
-      const originalLocation = window.location;
-      Object.defineProperty(window, "location", {
-        writable: true,
-        value: { ...originalLocation, pathname: "/dashboard", href: "" },
-      });
+      const dispatchSpy = vi.spyOn(window, "dispatchEvent");
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ success: false, error: "Unauthorized" }), { status: 401 }),
+        new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+          status: 401,
+        }),
       );
 
-      try {
-        await expect(get("/test")).rejects.toThrow("Unauthorized");
-        expect(getAuthToken()).toBeNull();
-        expect(localStorage.getItem("cc_switch_token")).toBeNull();
-        expect(window.location.href).toBe("/login");
-      } finally {
-        Object.defineProperty(window, "location", {
-          writable: true,
-          value: originalLocation,
-        });
-      }
+      await expect(get("/test")).rejects.toThrow("Unauthorized");
+      expect(getAuthToken()).toBeNull();
+      expect(localStorage.getItem("cc_switch_token")).toBeNull();
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "auth:expired" }),
+      );
     });
 
-    it("does not redirect on 401 when already on /login", async () => {
+    it("still dispatches auth:expired on 401 when already on /login", async () => {
       const { setAuthToken, get } = await importWebClient();
       setAuthToken("expired-token");
 
-      // Mock window.location
+      const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+
       const originalLocation = window.location;
       Object.defineProperty(window, "location", {
         writable: true,
-        value: { ...originalLocation, pathname: "/login", href: "" },
+        value: { ...originalLocation, pathname: "/login", href: "/login" },
       });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ success: false, error: "Unauthorized" }), { status: 401 }),
+        new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+          status: 401,
+        }),
       );
 
       try {
         await expect(get("/test")).rejects.toThrow("Unauthorized");
-        expect(window.location.href).toBe("");
+        expect(dispatchSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ type: "auth:expired" }),
+        );
       } finally {
         Object.defineProperty(window, "location", {
           writable: true,
