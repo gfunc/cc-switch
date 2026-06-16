@@ -6,7 +6,7 @@ fn main() {
     // in both desktop and api-only builds without a display server.
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "rotate-token") {
-        let new_token = cc_switch_lib::web::middleware::auth::rotate_auth_token();
+        let new_token = cc_switch_lib::rotate_auth_token();
         println!("New AUTH_TOKEN: {}", new_token);
         println!();
         println!("To use this token:");
