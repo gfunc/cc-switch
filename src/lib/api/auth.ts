@@ -97,11 +97,12 @@ export async function authLogout(
   });
 }
 
-export async function generateWebAdminToken(): Promise<string> {
+export async function login(token: string): Promise<string> {
   if (isTauri()) {
-    return invoke<string>("generate_web_token");
+    throw new Error("Login is only available in web mode");
   }
-  return webAuthApi.generateToken();
+  const { token: jwt } = await webAuthApi.login(token);
+  return jwt;
 }
 
 export async function logout(): Promise<void> {
@@ -109,13 +110,6 @@ export async function logout(): Promise<void> {
     return;
   }
   return webAuthApi.logout();
-}
-
-export async function isTokenRevealEnabled(): Promise<boolean> {
-  if (isTauri()) {
-    return false;
-  }
-  return webAuthApi.isTokenRevealEnabled();
 }
 
 export const authApi = {
@@ -126,7 +120,6 @@ export const authApi = {
   authRemoveAccount,
   authSetDefaultAccount,
   authLogout,
-  generateWebAdminToken,
+  login,
   logout,
-  isTokenRevealEnabled,
 };

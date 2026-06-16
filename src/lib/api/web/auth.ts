@@ -1,13 +1,10 @@
-import { get, post } from "../web-client";
+import { post } from "../web-client";
 
 export const webAuthApi = {
-  async generateToken(): Promise<string> {
-    return post("/auth/generate", {});
+  async login(token: string): Promise<{ token: string }> {
+    return post("/auth/login", { token });
   },
   async logout(): Promise<void> {
     return post("/auth/logout", {});
-  },
-  async isTokenRevealEnabled(): Promise<boolean> {
-    return get("/auth/token-reveal-enabled");
   },
 };
