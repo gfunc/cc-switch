@@ -5,46 +5,29 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use rusqlite::params;
 
 use crate::web::{create_router, handlers::ws::WsState, models::app_state::AppState};
 
-const FIRST_TOKEN_PRINTED_KEY: &str = "web_admin_token_printed";
-
-fn print_first_login_token_once(state: &AppState) {
-    let already_printed = state.with_db(|db| {
-        db.query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            [FIRST_TOKEN_PRINTED_KEY],
-            |row| row.get::<usize, String>(0),
-        )
-        .ok()
+fn print_auth_token_once() {
+    let already_printed = std::env::var("CC_SWITCH_AUTH_TOKEN_PRINTED")
         .map(|v| v == "1")
-        .unwrap_or(false)
-    });
+        .unwrap_or(false);
 
     if already_printed {
         return;
     }
 
-    match crate::web::middleware::auth::generate_token("admin") {
-        Ok(token) => {
-            // Print once on first startup so browser users can sign in immediately.
-            println!("[cc-switch] First-time web login token (save this now): {token}");
-            println!("[cc-switch] This token will not be auto-printed again.");
+    let token = crate::web::middleware::auth::get_auth_token();
+    println!();
+    println!("============================================================");
+    println!("[cc-switch] AUTH_TOKEN (paste this on the web login page):");
+    println!("{}", token);
+    println!("============================================================");
+    println!();
+    println!("To rotate: cc-switch rotate-token");
+    println!("To suppress this message: set CC_SWITCH_AUTH_TOKEN_PRINTED=1");
 
-            state.with_db_mut(|db| {
-                let _ = db.execute(
-                    "INSERT INTO settings (key, value) VALUES (?1, ?2) \
-                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    params![FIRST_TOKEN_PRINTED_KEY, "1"],
-                );
-            });
-        }
-        Err(err) => {
-            log::error!("Failed to generate first-time web login token: {}", err);
-        }
-    }
+    std::env::set_var("CC_SWITCH_AUTH_TOKEN_PRINTED", "1");
 }
 
 pub fn run() -> ! {
@@ -61,7 +44,11 @@ pub fn run() -> ! {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
-    let bind_addr: [u8; 4] = if bind_all { [0, 0, 0, 0] } else { [127, 0, 0, 1] };
+    let bind_addr: [u8; 4] = if bind_all {
+        [0, 0, 0, 0]
+    } else {
+        [127, 0, 0, 1]
+    };
     let addr = SocketAddr::from((bind_addr, port));
 
     // Resolve database path: env override or default app config dir
@@ -78,13 +65,11 @@ pub fn run() -> ! {
     log::info!("Listening on http://{}", addr);
     log::info!("Database: {}", db_path);
 
+    print_auth_token_once();
+
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
     rt.block_on(async move {
-        let web_state = Arc::new(
-            AppState::new(&db_path).expect("Failed to initialize database"),
-        );
-
-        print_first_login_token_once(&web_state);
+        let web_state = Arc::new(AppState::new(&db_path).expect("Failed to initialize database"));
 
         let (tx, _rx) = broadcast::channel(100);
         let ws_state = Arc::new(WsState::new(tx));
