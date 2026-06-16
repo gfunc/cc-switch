@@ -14,7 +14,9 @@ export const subscriptionApi = {
     }
     return invoke("get_subscription_quota", { tool });
   },
-  getCodexOauthQuota: (accountId: string | null): Promise<SubscriptionQuota> => {
+  getCodexOauthQuota: (
+    accountId: string | null,
+  ): Promise<SubscriptionQuota> => {
     if (!isTauri()) {
       return Promise.reject(
         new Error("Codex OAuth quota is not available in web mode"),

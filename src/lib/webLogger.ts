@@ -59,7 +59,9 @@ function truncate(value: string): string {
 function stringifyArg(arg: unknown): string {
   if (typeof arg === "string") return arg;
   if (arg instanceof Error) {
-    return arg.stack ? `${arg.name}: ${arg.message}\n${arg.stack}` : `${arg.name}: ${arg.message}`;
+    return arg.stack
+      ? `${arg.name}: ${arg.message}\n${arg.stack}`
+      : `${arg.name}: ${arg.message}`;
   }
   try {
     return JSON.stringify(arg);
@@ -182,7 +184,8 @@ export function installWebLogger(): void {
     record(
       "error",
       "window.onerror",
-      event.message || (error ? `${error.name}: ${error.message}` : "Unknown error"),
+      event.message ||
+        (error ? `${error.name}: ${error.message}` : "Unknown error"),
       {
         filename: event.filename,
         lineno: event.lineno,
@@ -193,20 +196,23 @@ export function installWebLogger(): void {
   });
 
   // Unhandled promise rejections.
-  window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
-    const reason = event.reason;
-    const message =
-      reason instanceof Error
-        ? `${reason.name}: ${reason.message}`
-        : stringifyArg(reason);
-    record(
-      "error",
-      "unhandledrejection",
-      message,
-      undefined,
-      reason instanceof Error ? reason.stack : undefined,
-    );
-  });
+  window.addEventListener(
+    "unhandledrejection",
+    (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      const message =
+        reason instanceof Error
+          ? `${reason.name}: ${reason.message}`
+          : stringifyArg(reason);
+      record(
+        "error",
+        "unhandledrejection",
+        message,
+        undefined,
+        reason instanceof Error ? reason.stack : undefined,
+      );
+    },
+  );
 
   // Flush on tab hide / unload so logs aren't lost when the user leaves.
   const flushOnExit = () => void flush(true);

@@ -13,6 +13,7 @@ import type {
   OptimizerConfig,
   LogConfig,
 } from "../settings";
+import type { CodexUnifyHistoryRestoreResult } from "../settings";
 
 export interface ConfigTransferResult {
   success: boolean;
@@ -46,6 +47,21 @@ export const settingsApi = {
 
   async checkUpdates(): Promise<void> {
     console.warn("check_for_updates not available in web mode");
+  },
+
+  async installUpdateAndRestart(): Promise<boolean> {
+    console.warn("install_update_and_restart not available in web mode");
+    return false;
+  },
+
+  async hasCodexUnifyHistoryBackup(): Promise<boolean> {
+    console.warn("has_codex_unify_history_backup not available in web mode");
+    return false;
+  },
+
+  async restoreCodexUnifiedHistory(): Promise<CodexUnifyHistoryRestoreResult> {
+    console.warn("restore_codex_unified_history not available in web mode");
+    return { restoredJsonlFiles: 0, restoredStateRows: 0 };
   },
 
   async isPortable(): Promise<boolean> {
@@ -303,7 +319,10 @@ export const backupsApi = {
   },
 
   async restoreDbBackup(filename: string): Promise<string> {
-    return post(`/settings/backups/${encodeURIComponent(filename)}/restore`, {});
+    return post(
+      `/settings/backups/${encodeURIComponent(filename)}/restore`,
+      {},
+    );
   },
 
   async renameDbBackup(oldFilename: string, newName: string): Promise<string> {

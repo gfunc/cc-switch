@@ -78,25 +78,35 @@ export const proxyApi = {
   },
 
   async getDefaultCostMultiplier(appType: string): Promise<string> {
-    return get(`/proxy/default-cost-multiplier?app=${encodeURIComponent(appType)}`);
+    return get(
+      `/proxy/default-cost-multiplier?app=${encodeURIComponent(appType)}`,
+    );
   },
 
   async setDefaultCostMultiplier(
     appType: string,
     value: string,
   ): Promise<void> {
-    await put(`/proxy/default-cost-multiplier?app=${encodeURIComponent(appType)}`, {
-      value,
-    });
+    await put(
+      `/proxy/default-cost-multiplier?app=${encodeURIComponent(appType)}`,
+      {
+        value,
+      },
+    );
   },
 
   async getPricingModelSource(appType: string): Promise<string> {
-    return get(`/proxy/pricing-model-source?app=${encodeURIComponent(appType)}`);
+    return get(
+      `/proxy/pricing-model-source?app=${encodeURIComponent(appType)}`,
+    );
   },
 
   async setPricingModelSource(appType: string, value: string): Promise<void> {
-    await put(`/proxy/pricing-model-source?app=${encodeURIComponent(appType)}`, {
-      value,
-    });
+    await put(
+      `/proxy/pricing-model-source?app=${encodeURIComponent(appType)}`,
+      {
+        value,
+      },
+    );
   },
 };

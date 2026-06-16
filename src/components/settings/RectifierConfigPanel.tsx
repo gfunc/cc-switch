@@ -4,10 +4,7 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { settingsApi } from "@/lib/api";
-import type {
-  RectifierConfig,
-  OptimizerConfig,
-} from "@/lib/api/settings";
+import type { RectifierConfig, OptimizerConfig } from "@/lib/api/settings";
 
 export function RectifierConfigPanel() {
   const { t } = useTranslation();

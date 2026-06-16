@@ -17,7 +17,7 @@ services:
       CC_SWITCH_WEB_BIND_ALL: "true"
       TAURI_RESOURCE_DIR: "/app/src-tauri"
       JWT_SECRET: "${JWT_SECRET:-cc-switch-dev-secret}"
-      CC_SWITCH_ENABLE_TOKEN_REVEAL: "${CC_SWITCH_ENABLE_TOKEN_REVEAL:-true}"
+      CC_SWITCH_ENABLE_TOKEN_REVEAL: "${CC_SWITCH_ENABLE_TOKEN_REVEAL:-false}"
     ports:
       - "${WEBSITE_PORT:-13001}:13001"
     volumes:

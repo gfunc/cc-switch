@@ -29,7 +29,9 @@ export async function deleteEnvVars(
   conflicts: EnvConflict[],
 ): Promise<BackupInfo> {
   if (!isTauri()) {
-    throw new Error("Environment variable cleanup is only available in desktop mode");
+    throw new Error(
+      "Environment variable cleanup is only available in desktop mode",
+    );
   }
   return invoke<BackupInfo>("delete_env_vars", { conflicts });
 }
@@ -40,7 +42,9 @@ export async function deleteEnvVars(
  */
 export async function restoreEnvBackup(backupPath: string): Promise<void> {
   if (!isTauri()) {
-    throw new Error("Environment variable restore is only available in desktop mode");
+    throw new Error(
+      "Environment variable restore is only available in desktop mode",
+    );
   }
   return invoke<void>("restore_env_backup", { backupPath });
 }

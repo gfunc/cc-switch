@@ -14,9 +14,7 @@ export const omoApi = {
     return invoke("read_omo_local_file");
   },
   getCurrentOmoProviderId: (): Promise<string> =>
-    isTauri()
-      ? invoke("get_current_omo_provider_id")
-      : Promise.resolve(""),
+    isTauri() ? invoke("get_current_omo_provider_id") : Promise.resolve(""),
   disableCurrentOmo: (): Promise<void> =>
     isTauri() ? invoke("disable_current_omo") : Promise.resolve(),
 };

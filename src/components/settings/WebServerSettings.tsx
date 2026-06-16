@@ -176,7 +176,7 @@ export function WebServerSettings() {
         const browserUrl = serverUrl.replace("0.0.0.0", "localhost");
         if (isTauri()) {
           const openModule = await new Function(
-            'return import("@tauri-apps/plugin-opener")'
+            'return import("@tauri-apps/plugin-opener")',
           )();
           await openModule.open(browserUrl);
         } else {
@@ -365,11 +365,7 @@ export function WebServerSettings() {
                   defaultValue: "Access Token",
                 })}
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleGenerateToken}
-              >
+              <Button variant="outline" size="sm" onClick={handleGenerateToken}>
                 <Key className="w-3 h-3 mr-1" />
                 {t("settings.webServer.generateToken", {
                   defaultValue: "Generate",
@@ -381,11 +377,7 @@ export function WebServerSettings() {
                 <code className="flex-1 px-3 py-2 text-xs bg-muted rounded-md font-mono break-all select-all">
                   {token}
                 </code>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCopyToken}
-                >
+                <Button variant="outline" size="icon" onClick={handleCopyToken}>
                   {copiedToken ? (
                     <Check className="w-4 h-4" />
                   ) : (

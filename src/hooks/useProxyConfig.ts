@@ -23,7 +23,8 @@ export function useProxyConfig() {
 
   // 更新配置
   const updateMutation = useMutation({
-    mutationFn: (newConfig: ProxyConfig) => proxyApi.updateProxyConfig(newConfig),
+    mutationFn: (newConfig: ProxyConfig) =>
+      proxyApi.updateProxyConfig(newConfig),
     onSuccess: () => {
       toast.success(t("proxy.settings.toast.saved"), { closeButton: true });
       queryClient.invalidateQueries({ queryKey: ["proxyConfig"] });
