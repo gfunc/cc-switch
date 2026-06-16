@@ -128,7 +128,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     })}
                   </p>
                   <code className="block bg-background px-2 py-1 rounded text-xs">
-                    cc-switch-web rotate-token
+                    cc-switch rotate-token
                   </code>
                 </div>
               </div>

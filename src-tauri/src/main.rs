@@ -2,6 +2,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    // CLI subcommand: rotate-token. Runs before any Tauri/GTK init so it works
+    // in both desktop and api-only builds without a display server.
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "rotate-token") {
+        let new_token = cc_switch_lib::web::middleware::auth::rotate_auth_token();
+        println!("New AUTH_TOKEN: {}", new_token);
+        println!();
+        println!("To use this token:");
+        println!("  1. Restart the cc-switch server for the new token to take effect.");
+        println!("  2. Paste the token on the web login page.");
+        return;
+    }
+
     // API-only mode: activated at Docker build time via --features api-only.
     // Skips Tauri/GTK entirely — no display server required.
     #[cfg(feature = "api-only")]
