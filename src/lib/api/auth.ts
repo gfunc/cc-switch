@@ -104,6 +104,20 @@ export async function generateWebAdminToken(): Promise<string> {
   return webAuthApi.generateToken();
 }
 
+export async function logout(): Promise<void> {
+  if (isTauri()) {
+    return;
+  }
+  return webAuthApi.logout();
+}
+
+export async function isTokenRevealEnabled(): Promise<boolean> {
+  if (isTauri()) {
+    return false;
+  }
+  return webAuthApi.isTokenRevealEnabled();
+}
+
 export const authApi = {
   authStartLogin,
   authPollForAccount,
@@ -113,4 +127,6 @@ export const authApi = {
   authSetDefaultAccount,
   authLogout,
   generateWebAdminToken,
+  logout,
+  isTokenRevealEnabled,
 };
