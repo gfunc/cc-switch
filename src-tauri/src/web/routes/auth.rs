@@ -1,76 +1,35 @@
 use crate::web::{
-    middleware::auth::{generate_token, revoke_token, validate_token},
+    middleware::auth::{generate_token, get_auth_token, revoke_token},
     models::ApiResponse,
 };
-use axum::{
-    extract::Request,
-    routing::{get, post},
-    Json, Router,
-};
+use axum::{extract::Request, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
-use std::env;
 
 #[derive(Debug, Deserialize)]
-pub struct VerifyTokenRequest {
+pub struct LoginRequest {
     pub token: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct VerifyTokenResponse {
-    pub valid: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LoginRequest {
-    #[allow(dead_code)]
-    pub username: String,
-    #[allow(dead_code)]
-    pub password: String,
+pub struct LoginResponse {
+    pub token: String,
 }
 
 pub fn routes() -> Router {
     Router::new()
-        .route("/verify", post(verify_token))
-        .route("/generate", post(generate_token_route))
-        .route("/login", post(login_deprecated))
+        .route("/login", post(login_route))
         .route("/logout", post(logout_route))
-        .route("/token-reveal-enabled", get(token_reveal_enabled_route))
 }
 
-fn token_reveal_enabled() -> bool {
-    env::var("CC_SWITCH_ENABLE_TOKEN_REVEAL")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false)
-}
+async fn login_route(Json(req): Json<LoginRequest>) -> Json<ApiResponse<LoginResponse>> {
+    let expected = get_auth_token();
 
-async fn verify_token(
-    Json(req): Json<VerifyTokenRequest>,
-) -> Json<ApiResponse<VerifyTokenResponse>> {
-    if req.token.is_empty() {
-        return Json(ApiResponse::error("Token is required".to_string()));
-    }
-
-    match validate_token(&req.token) {
-        Ok(_claims) => Json(ApiResponse::success(VerifyTokenResponse { valid: true })),
-        Err(_) => Json(ApiResponse::success(VerifyTokenResponse { valid: false })),
-    }
-}
-
-async fn login_deprecated(Json(_req): Json<LoginRequest>) -> Json<ApiResponse<serde_json::Value>> {
-    Json(ApiResponse::error(
-        "Password login is no longer supported. Please generate a token using the CLI: cc-switch-web generate-token".to_string()
-    ))
-}
-
-async fn generate_token_route() -> Json<ApiResponse<String>> {
-    if !token_reveal_enabled() {
-        return Json(ApiResponse::error(
-            "Token reveal is disabled. Set CC_SWITCH_ENABLE_TOKEN_REVEAL=true to enable this endpoint.".to_string(),
-        ));
+    if !constant_time_eq(req.token.as_bytes(), expected.as_bytes()) {
+        return Json(ApiResponse::error("Invalid auth token".to_string()));
     }
 
     match generate_token("admin") {
-        Ok(token) => Json(ApiResponse::success(token)),
+        Ok(token) => Json(ApiResponse::success(LoginResponse { token })),
         Err(e) => Json(ApiResponse::error(format!(
             "Failed to generate token: {}",
             e
@@ -99,8 +58,15 @@ async fn logout_route(request: Request) -> Json<ApiResponse<()>> {
     }
 }
 
-async fn token_reveal_enabled_route() -> Json<ApiResponse<bool>> {
-    Json(ApiResponse::success(token_reveal_enabled()))
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 #[cfg(test)]
@@ -108,16 +74,46 @@ mod tests {
     use super::*;
     use crate::web::middleware::auth::{generate_token, is_jti_revoked, validate_token};
     use serial_test::serial;
+    use std::env;
 
-    #[test]
+    #[tokio::test]
     #[serial]
-    fn token_reveal_enabled_reflects_env() {
-        assert_eq!(token_reveal_enabled(), false);
+    async fn login_route_returns_jwt_on_valid_token() {
+        unsafe { env::set_var("AUTH_TOKEN", "test-login-secret") };
+
+        let response = login_route(Json(LoginRequest {
+            token: "test-login-secret".to_string(),
+        }))
+        .await;
+
+        let json = response.0;
+        assert!(json.success);
+
+        unsafe { env::remove_var("AUTH_TOKEN") };
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn login_route_rejects_invalid_token() {
+        unsafe { env::set_var("AUTH_TOKEN", "correct-secret") };
+
+        let response = login_route(Json(LoginRequest {
+            token: "wrong-secret".to_string(),
+        }))
+        .await;
+
+        let json = response.0;
+        assert!(!json.success);
+
+        unsafe { env::remove_var("AUTH_TOKEN") };
     }
 
     #[tokio::test]
     #[serial]
     async fn logout_route_revokes_token() {
+        unsafe { env::set_var("AUTH_TOKEN", "logout-test-secret") };
+        let _ = get_auth_token();
+
         let token = generate_token("admin").unwrap();
         let jti = validate_token(&token).unwrap().jti;
 
@@ -128,8 +124,10 @@ mod tests {
             .body(axum::body::Body::empty())
             .unwrap();
 
-        let response = logout_route(axum::extract::Request::from(request)).await;
+        let response = logout_route(request).await;
         assert!(response.0.success);
         assert!(is_jti_revoked(&jti));
+
+        unsafe { env::remove_var("AUTH_TOKEN") };
     }
 }
