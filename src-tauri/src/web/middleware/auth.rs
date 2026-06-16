@@ -18,8 +18,45 @@ const TOKEN_EXPIRATION_SECONDS: usize = 24 * 60 * 60;
 
 const AUTH_TOKEN_FILE: &str = "auth_token";
 
-/// Cached AUTH_TOKEN — initialized once on first use.
-static AUTH_TOKEN: OnceLock<String> = OnceLock::new();
+/// Cached AUTH_TOKEN — initialized lazily and resettable by `rotate_auth_token`.
+static AUTH_TOKEN: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn auth_token_cache() -> &'static Mutex<Option<String>> {
+    AUTH_TOKEN.get_or_init(|| Mutex::new(None))
+}
+
+fn load_auth_token_from_sources() -> String {
+    if let Ok(token) = env::var("AUTH_TOKEN") {
+        if !token.is_empty() {
+            log::info!("Using AUTH_TOKEN from environment");
+            return token;
+        }
+    }
+    let path = auth_token_path();
+    if let Ok(token) = fs::read_to_string(&path) {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            log::info!("Loaded AUTH_TOKEN from {}", path.display());
+            return token;
+        }
+    }
+    let token = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+    if let Err(e) = fs::write(&path, &token) {
+        log::error!("Failed to persist AUTH_TOKEN to {}: {}", path.display(), e);
+    } else {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+        }
+    }
+    log::info!(
+        "Generated new AUTH_TOKEN and persisted to {}. New token: {}",
+        path.display(),
+        token
+    );
+    token
+}
 
 /// In-memory blocklist for revoked token JTIs.
 static REVOKED_JTIS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
@@ -59,45 +96,20 @@ fn auth_token_path() -> PathBuf {
 /// Get or load the AUTH_TOKEN.
 /// Priority: AUTH_TOKEN env var > file at `auth_token_path()` > generate and persist a new one.
 pub fn get_auth_token() -> String {
-    AUTH_TOKEN
-        .get_or_init(|| {
-            if let Ok(token) = env::var("AUTH_TOKEN") {
-                if !token.is_empty() {
-                    log::info!("Using AUTH_TOKEN from environment");
-                    return token;
-                }
-            }
-            let path = auth_token_path();
-            if let Ok(token) = fs::read_to_string(&path) {
-                let token = token.trim().to_string();
-                if !token.is_empty() {
-                    log::info!("Loaded AUTH_TOKEN from {}", path.display());
-                    return token;
-                }
-            }
-            let token = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
-            if let Err(e) = fs::write(&path, &token) {
-                log::error!("Failed to persist AUTH_TOKEN to {}: {}", path.display(), e);
-            } else {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
-                }
-            }
-            log::info!(
-                "Generated new AUTH_TOKEN and persisted to {}. New token: {}",
-                path.display(),
-                token
-            );
-            token
-        })
-        .clone()
+    let mut guard = auth_token_cache()
+        .lock()
+        .expect("AUTH_TOKEN cache lock poisoned");
+    if let Some(token) = guard.as_ref() {
+        return token.clone();
+    }
+    let token = load_auth_token_from_sources();
+    *guard = Some(token.clone());
+    token
 }
 
-/// Rotate the AUTH_TOKEN, generating a new one and persisting it to disk.
-/// Returns the new token. Note: the in-memory cache is intentionally NOT updated;
-/// callers needing the rotated value should use the returned string.
+/// Rotate the AUTH_TOKEN: generate a new random value, persist to disk, and
+/// update the in-memory cache so existing JWTs signed with the previous secret
+/// immediately fail validation.
 pub fn rotate_auth_token() -> String {
     let new_token = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
     let path = auth_token_path();
@@ -110,6 +122,10 @@ pub fn rotate_auth_token() -> String {
             let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
         }
     }
+    let mut guard = auth_token_cache()
+        .lock()
+        .expect("AUTH_TOKEN cache lock poisoned");
+    *guard = Some(new_token.clone());
     log::info!("Rotated AUTH_TOKEN. New token: {}", new_token);
     new_token
 }
@@ -227,5 +243,24 @@ mod tests {
         unsafe { env::remove_var("AUTH_TOKEN") };
         let token = get_auth_token();
         assert!(!token.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn rotate_auth_token_invalidates_old_tokens() {
+        unsafe { env::set_var("AUTH_TOKEN", "initial-rotation-secret") };
+        // Prime the cache.
+        let _ = get_auth_token();
+
+        let old_token = generate_token("admin").expect("token generation failed");
+        assert!(validate_token(&old_token).is_ok());
+
+        let new_token = rotate_auth_token();
+        assert_ne!(new_token, "initial-rotation-secret");
+
+        // Old JWT now fails signature validation.
+        assert!(validate_token(&old_token).is_err());
+
+        unsafe { env::remove_var("AUTH_TOKEN") };
     }
 }
