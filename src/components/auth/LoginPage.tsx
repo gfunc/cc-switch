@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -27,6 +27,24 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [token, setToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRevealingToken, setIsRevealingToken] = useState(false);
+  const [tokenRevealEnabled, setTokenRevealEnabled] = useState<boolean | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    authApi
+      .isTokenRevealEnabled()
+      .then((enabled) => {
+        if (!cancelled) setTokenRevealEnabled(enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setTokenRevealEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleRevealToken = async () => {
     setIsRevealingToken(true);
@@ -140,25 +158,27 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     disabled={isLoading || isRevealingToken}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleRevealToken}
-                  disabled={isLoading || isRevealingToken}
-                >
-                  {isRevealingToken ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t("login.revealing", { defaultValue: "Generating..." })}
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="mr-2 h-4 w-4" />
-                      {t("login.revealToken", { defaultValue: "Reveal Token" })}
-                    </>
-                  )}
-                </Button>
+                {tokenRevealEnabled === true && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleRevealToken}
+                    disabled={isLoading || isRevealingToken}
+                  >
+                    {isRevealingToken ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t("login.revealing", { defaultValue: "Generating..." })}
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-2 h-4 w-4" />
+                        {t("login.revealToken", { defaultValue: "Reveal Token" })}
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (

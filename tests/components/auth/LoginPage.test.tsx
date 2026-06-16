@@ -20,6 +20,7 @@ vi.mock("react-i18next", () => ({
 const postMock = vi.fn();
 const setAuthTokenMock = vi.fn();
 const generateWebAdminTokenMock = vi.fn();
+const isTokenRevealEnabledMock = vi.fn();
 
 vi.mock("@tauri-icons/icon.png", () => ({
   default: "/mocked-icon.png",
@@ -33,12 +34,16 @@ vi.mock("@/lib/api/web-client", () => ({
 vi.mock("@/lib/api", () => ({
   authApi: {
     generateWebAdminToken: () => generateWebAdminTokenMock(),
+    isTokenRevealEnabled: () => isTokenRevealEnabledMock(),
   },
 }));
 
 const renderLoginPage = (props: { onLogin?: () => void } = {}) => {
   return render(<LoginPage onLogin={props.onLogin ?? vi.fn()} />);
 };
+
+const findRevealButton = () =>
+  screen.findByRole("button", { name: "login.revealToken" });
 
 describe("LoginPage Component", () => {
   beforeEach(() => {
@@ -47,19 +52,23 @@ describe("LoginPage Component", () => {
     postMock.mockReset();
     setAuthTokenMock.mockReset();
     generateWebAdminTokenMock.mockReset();
+    isTokenRevealEnabledMock.mockReset().mockResolvedValue(true);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders the login form with input and buttons", () => {
+  it("renders the login form with input and buttons", async () => {
+    isTokenRevealEnabledMock.mockResolvedValue(true);
     renderLoginPage();
 
     expect(screen.getByLabelText("login.token")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "login.revealToken" }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "login.revealToken" }),
+      ).toBeInTheDocument(),
+    );
     expect(
       screen.getByRole("button", { name: "login.submit" }),
     ).toBeInTheDocument();
@@ -80,7 +89,7 @@ describe("LoginPage Component", () => {
 
     renderLoginPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "login.revealToken" }));
+    fireEvent.click(await findRevealButton());
 
     await waitFor(() => {
       expect(generateWebAdminTokenMock).toHaveBeenCalledTimes(1);
@@ -100,7 +109,7 @@ describe("LoginPage Component", () => {
 
     renderLoginPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "login.revealToken" }));
+    fireEvent.click(await findRevealButton());
 
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledWith("login.tokenRevealFailed");
@@ -184,9 +193,7 @@ describe("LoginPage Component", () => {
 
     renderLoginPage();
 
-    const revealButton = screen.getByRole("button", {
-      name: "login.revealToken",
-    });
+    const revealButton = await findRevealButton();
     const submitButton = screen.getByRole("button", { name: "login.submit" });
     const input = screen.getByPlaceholderText(
       "login.tokenPlaceholder",
@@ -217,5 +224,41 @@ describe("LoginPage Component", () => {
 
     resolvePost!({ valid: true });
     await waitFor(() => expect(input).not.toBeDisabled());
+  });
+
+  it("hides reveal token button when token reveal is disabled", async () => {
+    isTokenRevealEnabledMock.mockResolvedValue(false);
+
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "login.revealToken" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows reveal token button when token reveal is enabled", async () => {
+    isTokenRevealEnabledMock.mockResolvedValue(true);
+
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "login.revealToken" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("hides reveal token button when token reveal status fetch fails", async () => {
+    isTokenRevealEnabledMock.mockRejectedValue(new Error("network error"));
+
+    renderLoginPage();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "login.revealToken" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });
