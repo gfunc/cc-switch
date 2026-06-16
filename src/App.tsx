@@ -32,7 +32,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import type { EnvConflict } from "@/types/env";
 import { useProvidersQuery, useSettingsQuery } from "@/lib/query";
-import { providersApi, settingsApi, authApi, type AppId, type ProviderSwitchEvent } from "@/lib/api";
+import {
+  providersApi,
+  settingsApi,
+  authApi,
+  type AppId,
+  type ProviderSwitchEvent,
+} from "@/lib/api";
 import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";

@@ -169,12 +169,16 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     {isRevealingToken ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {t("login.revealing", { defaultValue: "Generating..." })}
+                        {t("login.revealing", {
+                          defaultValue: "Generating...",
+                        })}
                       </>
                     ) : (
                       <>
                         <Eye className="mr-2 h-4 w-4" />
-                        {t("login.revealToken", { defaultValue: "Reveal Token" })}
+                        {t("login.revealToken", {
+                          defaultValue: "Reveal Token",
+                        })}
                       </>
                     )}
                   </Button>
