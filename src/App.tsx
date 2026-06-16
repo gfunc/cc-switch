@@ -26,17 +26,13 @@ import {
   Shield,
   Cpu,
   LayoutDashboard,
+  LogOut,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import type { EnvConflict } from "@/types/env";
 import { useProvidersQuery, useSettingsQuery } from "@/lib/query";
-import {
-  providersApi,
-  settingsApi,
-  type AppId,
-  type ProviderSwitchEvent,
-} from "@/lib/api";
+import { providersApi, settingsApi, authApi, type AppId, type ProviderSwitchEvent } from "@/lib/api";
 import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useProviderActions } from "@/hooks/useProviderActions";
 import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
@@ -91,11 +87,11 @@ import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import { ThemeProvider } from "@/components/theme-provider";
-import { getAuthToken } from "@/lib/api/web-client";
+import { getAuthToken, clearAuthToken } from "@/lib/api/web-client";
 import { useWebAuthSync } from "@/hooks/useWebAuthSync";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { TerminalModal } from "@/components/terminal";
-import { isTauri } from "@/lib/environment";
+import { isTauri, isWebMode } from "@/lib/environment";
 
 type View =
   | "providers"
@@ -185,6 +181,24 @@ function App() {
     queryClient.clear();
   };
 
+  const handleLogout = async () => {
+    setLogoutConfirmOpen(false);
+    try {
+      await authApi.logout();
+    } catch (error) {
+      toast.warning(
+        t("logout.serverInvalidationWarning", {
+          defaultValue:
+            "Logged out locally, but server session invalidation may have failed.",
+        }),
+      );
+    } finally {
+      clearAuthToken();
+      queryClient.clear();
+      setIsAuthenticated(false);
+    }
+  };
+
   const [activeApp, setActiveApp] = useState<AppId>(getInitialApp);
   const sharedFeatureApp: AppId =
     activeApp === "claude-desktop" ? "claude" : activeApp;
@@ -192,6 +206,7 @@ function App() {
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, currentView);
@@ -1248,6 +1263,17 @@ function App() {
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
+                {isWebMode() && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setLogoutConfirmOpen(true)}
+                    title={t("common.logout")}
+                    className="hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                )}
                 <UpdateBadge
                   onClick={() => {
                     setSettingsDefaultTab("about");
@@ -1679,6 +1705,19 @@ function App() {
           })();
         }}
         onCancel={() => setLaunchDashboardOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={logoutConfirmOpen}
+        title={t("logout.confirmTitle", { defaultValue: "Log out?" })}
+        message={t("logout.confirmMessage", {
+          defaultValue:
+            "This will invalidate your current session and return you to the login page.",
+        })}
+        confirmText={t("logout.confirmAction", { defaultValue: "Log out" })}
+        variant="info"
+        onConfirm={() => void handleLogout()}
+        onCancel={() => setLogoutConfirmOpen(false)}
       />
 
       <DeepLinkImportDialog />
