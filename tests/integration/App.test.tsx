@@ -21,6 +21,12 @@ vi.mock("sonner", () => ({
   },
 }));
 
+vi.mock("@/lib/environment", () => ({
+  isTauri: () => true,
+  isWebMode: () => true,
+  isDesktop: () => true,
+}));
+
 vi.mock("@/components/providers/ProviderList", () => ({
   ProviderList: ({
     providers,
@@ -351,5 +357,35 @@ describe("App integration with MSW", () => {
     );
 
     liveIdsSpy.mockRestore();
+  });
+
+  it("renders logout button in web mode", async () => {
+    const { default: App } = await import("@/App");
+    renderApp(App);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("provider-list").textContent).toContain(
+        "claude-1",
+      ),
+    );
+
+    expect(screen.getByTitle("common.logout")).toBeInTheDocument();
+  });
+
+  it("opens logout confirmation when logout button is clicked", async () => {
+    const { default: App } = await import("@/App");
+    renderApp(App);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("provider-list").textContent).toContain(
+        "claude-1",
+      ),
+    );
+
+    fireEvent.click(screen.getByTitle("common.logout"));
+
+    await waitFor(() =>
+      expect(document.body).toHaveAttribute("data-scroll-locked"),
+    );
   });
 });
