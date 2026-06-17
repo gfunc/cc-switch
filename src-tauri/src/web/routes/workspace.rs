@@ -139,14 +139,44 @@ mod tests {
     use super::*;
     use crate::web::models::app_state::AppState;
     use std::env::temp_dir;
+    use std::ffi::OsString;
     use std::sync::{Arc, Mutex, OnceLock};
     use tokio::sync::broadcast;
 
-    fn test_guard() -> std::sync::MutexGuard<'static, ()> {
+    struct TestGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_home: Option<OsString>,
+        original_test_home: Option<OsString>,
+    }
+
+    impl Drop for TestGuard {
+        fn drop(&mut self) {
+            if let Some(ref v) = self.original_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(ref v) = self.original_test_home {
+                std::env::set_var("CC_SWITCH_TEST_HOME", v);
+            } else {
+                std::env::remove_var("CC_SWITCH_TEST_HOME");
+            }
+        }
+    }
+
+    fn test_guard() -> TestGuard {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
+        let lock = LOCK
+            .get_or_init(|| Mutex::new(()))
             .lock()
-            .unwrap_or_else(|err| err.into_inner())
+            .unwrap_or_else(|err| err.into_inner());
+        let original_home = std::env::var_os("HOME");
+        let original_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
+        TestGuard {
+            _lock: lock,
+            original_home,
+            original_test_home,
+        }
     }
 
     fn test_ws_state() -> Arc<WsState> {
@@ -164,6 +194,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_read_and_write_workspace_file() {
         let _guard = test_guard();
         let state = test_state();
@@ -189,6 +220,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_daily_memory_roundtrip() {
         let _guard = test_guard();
         let state = test_state();
@@ -218,6 +250,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_list_daily_memory_files() {
         let _guard = test_guard();
         let state = test_state();
@@ -243,6 +276,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_search_daily_memory_files() {
         let _guard = test_guard();
         let state = test_state();
@@ -274,6 +308,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_delete_daily_memory_file() {
         let _guard = test_guard();
         let state = test_state();
@@ -307,6 +342,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_directory_path_returns_distinct_paths() {
         let _guard = test_guard();
         let state = test_state();
@@ -340,6 +376,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_web_routes_directory_path_rejects_invalid_subdir() {
         let _guard = test_guard();
         let state = test_state();

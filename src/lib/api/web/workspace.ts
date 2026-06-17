@@ -4,15 +4,22 @@ import type {
   DailyMemorySearchResult,
 } from "../workspace";
 
-export type { DailyMemoryFileInfo, DailyMemorySearchResult } from "../workspace";
+export type {
+  DailyMemoryFileInfo,
+  DailyMemorySearchResult,
+} from "../workspace";
 
 export const workspaceApi = {
   async readFile(filename: string): Promise<string | null> {
-    return get<string | null>(`/workspace/file/${encodeURIComponent(filename)}`);
+    return get<string | null>(
+      `/workspace/file/${encodeURIComponent(filename)}`,
+    );
   },
 
   async writeFile(filename: string, content: string): Promise<void> {
-    return put<void>(`/workspace/file/${encodeURIComponent(filename)}`, { content });
+    return put<void>(`/workspace/file/${encodeURIComponent(filename)}`, {
+      content,
+    });
   },
 
   async listDailyMemoryFiles(): Promise<DailyMemoryFileInfo[]> {
@@ -33,12 +40,12 @@ export const workspaceApi = {
   },
 
   async deleteDailyMemoryFile(filename: string): Promise<void> {
-    return del<void>(
-      `/workspace/daily-memory/${encodeURIComponent(filename)}`,
-    );
+    return del<void>(`/workspace/daily-memory/${encodeURIComponent(filename)}`);
   },
 
-  async searchDailyMemoryFiles(query: string): Promise<DailyMemorySearchResult[]> {
+  async searchDailyMemoryFiles(
+    query: string,
+  ): Promise<DailyMemorySearchResult[]> {
     return get<DailyMemorySearchResult[]>(
       `/workspace/daily-memory/search?query=${encodeURIComponent(query)}`,
     );

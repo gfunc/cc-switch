@@ -272,13 +272,43 @@ impl WorkspaceService {
 mod tests {
     use super::*;
     use std::env::temp_dir;
+    use std::ffi::OsString;
     use std::sync::{Mutex, OnceLock};
 
-    fn test_guard() -> std::sync::MutexGuard<'static, ()> {
+    struct TestGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        original_home: Option<OsString>,
+        original_test_home: Option<OsString>,
+    }
+
+    impl Drop for TestGuard {
+        fn drop(&mut self) {
+            if let Some(ref v) = self.original_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(ref v) = self.original_test_home {
+                std::env::set_var("CC_SWITCH_TEST_HOME", v);
+            } else {
+                std::env::remove_var("CC_SWITCH_TEST_HOME");
+            }
+        }
+    }
+
+    fn test_guard() -> TestGuard {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
+        let lock = LOCK
+            .get_or_init(|| Mutex::new(()))
             .lock()
-            .unwrap_or_else(|err| err.into_inner())
+            .unwrap_or_else(|err| err.into_inner());
+        let original_home = std::env::var_os("HOME");
+        let original_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
+        TestGuard {
+            _lock: lock,
+            original_home,
+            original_test_home,
+        }
     }
 
     fn set_test_home(path: &std::path::Path) {
@@ -287,6 +317,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_reads_and_writes_workspace_file() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-{}", std::process::id()));
@@ -301,6 +332,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_rejects_invalid_filename() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-bad-{}", std::process::id()));
@@ -321,6 +353,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_returns_none_for_missing_file() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-missing-{}", std::process::id()));
@@ -334,6 +367,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_daily_memory_roundtrip() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-mem-{}", std::process::id()));
@@ -371,6 +405,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_rejects_invalid_daily_memory_filename() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-bad-mem-{}", std::process::id()));
@@ -396,6 +431,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_search_finds_content_and_date() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-search-{}", std::process::id()));
@@ -442,6 +478,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_delete_is_idempotent() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-del-{}", std::process::id()));
@@ -457,6 +494,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_list_sorts_descending() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-sort-{}", std::process::id()));
@@ -477,6 +515,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn workspace_service_directories_are_correct() {
         let _guard = test_guard();
         let temp = temp_dir().join(format!("cc-switch-ws-svc-dir-{}", std::process::id()));

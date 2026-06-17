@@ -209,7 +209,9 @@ const AgentsDefaultsPanel: React.FC = () => {
             disabled={saveAgentsMutation.isPending}
           >
             <Save className="w-4 h-4 mr-1" />
-            {saveAgentsMutation.isPending ? t("common.saving") : t("common.save")}
+            {saveAgentsMutation.isPending
+              ? t("common.saving")
+              : t("common.save")}
           </Button>
         </div>
       </div>

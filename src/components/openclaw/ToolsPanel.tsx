@@ -61,8 +61,8 @@ const ToolsPanel: React.FC = () => {
   const isToolsEmpty =
     toolsData &&
     !toolsData.profile &&
-    !(toolsData.allow?.length) &&
-    !(toolsData.deny?.length);
+    !toolsData.allow?.length &&
+    !toolsData.deny?.length;
 
   const profileLabels = useMemo<Record<OpenClawToolsProfile, string>>(
     () => ({
