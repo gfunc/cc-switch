@@ -140,11 +140,15 @@ impl WorkspaceService {
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
-            let preview = std::fs::read_to_string(entry.path())
-                .unwrap_or_default()
-                .chars()
-                .take(200)
-                .collect::<String>();
+            let full_text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            let char_limit = 200;
+            let byte_end = full_text
+                .char_indices()
+                .nth(char_limit)
+                .map(|(i, _)| i)
+                .unwrap_or(full_text.len());
+            let byte_end = Self::ceil_char_boundary(&full_text, byte_end);
+            let preview = full_text[..byte_end].to_string();
             files.push(DailyMemoryFileInfo {
                 filename: name,
                 date,
@@ -271,73 +275,22 @@ impl WorkspaceService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env::temp_dir;
-    use std::ffi::OsString;
-    use std::sync::{Mutex, OnceLock};
-
-    struct TestGuard {
-        _lock: std::sync::MutexGuard<'static, ()>,
-        original_home: Option<OsString>,
-        original_test_home: Option<OsString>,
-    }
-
-    impl Drop for TestGuard {
-        fn drop(&mut self) {
-            if let Some(ref v) = self.original_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-            if let Some(ref v) = self.original_test_home {
-                std::env::set_var("CC_SWITCH_TEST_HOME", v);
-            } else {
-                std::env::remove_var("CC_SWITCH_TEST_HOME");
-            }
-        }
-    }
-
-    fn test_guard() -> TestGuard {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        let lock = LOCK
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|err| err.into_inner());
-        let original_home = std::env::var_os("HOME");
-        let original_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
-        TestGuard {
-            _lock: lock,
-            original_home,
-            original_test_home,
-        }
-    }
-
-    fn set_test_home(path: &std::path::Path) {
-        std::env::set_var("CC_SWITCH_TEST_HOME", path);
-        std::env::set_var("HOME", path);
-    }
+    use crate::testing::TestEnv;
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_reads_and_writes_workspace_file() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         WorkspaceService::write_workspace_file("AGENTS.md", "# agents").await.unwrap();
         let content = WorkspaceService::read_workspace_file("AGENTS.md").await.unwrap();
         assert_eq!(content, Some("# agents".to_string()));
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_rejects_invalid_filename() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-bad-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         let err = WorkspaceService::read_workspace_file("../../etc/passwd")
             .await
@@ -348,31 +301,21 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("Invalid workspace filename"));
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_returns_none_for_missing_file() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-missing-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         let content = WorkspaceService::read_workspace_file("AGENTS.md").await.unwrap();
         assert_eq!(content, None);
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_daily_memory_roundtrip() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-mem-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         // Write a daily memory file
         WorkspaceService::write_daily_memory_file("2024-01-15.md", "# Day 1\nHello world")
@@ -400,17 +343,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(content, None);
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_rejects_invalid_daily_memory_filename() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-bad-mem-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         let err = WorkspaceService::read_daily_memory_file("not-a-date.md")
             .await
@@ -426,17 +364,12 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("Invalid daily memory filename"));
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_search_finds_content_and_date() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-search-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         WorkspaceService::write_daily_memory_file("2024-01-15.md", "# Day 1\nHello world")
             .await
@@ -473,33 +406,23 @@ mod tests {
             .await
             .unwrap();
         assert!(results.is_empty());
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_delete_is_idempotent() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-del-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         // Deleting a non-existent file should not error
         WorkspaceService::delete_daily_memory_file("2024-01-15.md")
             .await
             .unwrap();
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_list_sorts_descending() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-sort-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         WorkspaceService::write_daily_memory_file("2024-01-10.md", "A").await.unwrap();
         WorkspaceService::write_daily_memory_file("2024-01-15.md", "B").await.unwrap();
@@ -510,17 +433,12 @@ mod tests {
         assert_eq!(files[0].filename, "2024-01-15.md");
         assert_eq!(files[1].filename, "2024-01-12.md");
         assert_eq!(files[2].filename, "2024-01-10.md");
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_service_directories_are_correct() {
-        let _guard = test_guard();
-        let temp = temp_dir().join(format!("cc-switch-ws-svc-dir-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
-        set_test_home(&temp);
+        let _env = TestEnv::new();
 
         let ws = WorkspaceService::workspace_directory();
         assert!(ws.to_string_lossy().contains("workspace"));
@@ -528,7 +446,5 @@ mod tests {
         let mem = WorkspaceService::memory_directory();
         assert!(mem.to_string_lossy().contains("memory"));
         assert!(mem.to_string_lossy().contains("workspace"));
-
-        let _ = std::fs::remove_dir_all(&temp);
     }
 }

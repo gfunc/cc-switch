@@ -137,67 +137,25 @@ async fn get_directory_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::TestEnv;
     use crate::web::models::app_state::AppState;
-    use std::env::temp_dir;
-    use std::ffi::OsString;
-    use std::sync::{Arc, Mutex, OnceLock};
+    use std::sync::Arc;
     use tokio::sync::broadcast;
-
-    struct TestGuard {
-        _lock: std::sync::MutexGuard<'static, ()>,
-        original_home: Option<OsString>,
-        original_test_home: Option<OsString>,
-    }
-
-    impl Drop for TestGuard {
-        fn drop(&mut self) {
-            if let Some(ref v) = self.original_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-            if let Some(ref v) = self.original_test_home {
-                std::env::set_var("CC_SWITCH_TEST_HOME", v);
-            } else {
-                std::env::remove_var("CC_SWITCH_TEST_HOME");
-            }
-        }
-    }
-
-    fn test_guard() -> TestGuard {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        let lock = LOCK
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|err| err.into_inner());
-        let original_home = std::env::var_os("HOME");
-        let original_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
-        TestGuard {
-            _lock: lock,
-            original_home,
-            original_test_home,
-        }
-    }
 
     fn test_ws_state() -> Arc<WsState> {
         Arc::new(WsState::new(broadcast::channel(16).0))
     }
 
-    fn test_state() -> Arc<AppState> {
-        let home = temp_dir().join(format!("cc-switch-web-ws-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
-        let _ = std::fs::remove_dir_all(&home);
-        std::fs::create_dir_all(&home).unwrap();
-        std::env::set_var("CC_SWITCH_TEST_HOME", &home);
-        std::env::set_var("HOME", &home);
-        let db_path = home.join("cc-switch.db");
+    fn test_state(env: &TestEnv) -> Arc<AppState> {
+        let db_path = env.home_path().join("cc-switch.db");
         Arc::new(AppState::new(db_path.to_str().unwrap()).unwrap())
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_read_and_write_workspace_file() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
 
         let written = write_workspace_file(
@@ -222,8 +180,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_daily_memory_roundtrip() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
         let filename = "2026-06-18.md".to_string();
 
@@ -252,8 +210,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_list_daily_memory_files() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
         let filename = "2026-06-18.md".to_string();
 
@@ -278,8 +236,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_search_daily_memory_files() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
         let filename = "2026-06-18.md".to_string();
 
@@ -310,8 +268,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_delete_daily_memory_file() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
         let filename = "2026-06-18.md".to_string();
 
@@ -344,8 +302,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_directory_path_returns_distinct_paths() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
 
         let workspace = get_directory_path(
@@ -378,8 +336,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn workspace_web_routes_directory_path_rejects_invalid_subdir() {
-        let _guard = test_guard();
-        let state = test_state();
+        let env = TestEnv::new();
+        let state = test_state(&env);
         let ws = test_ws_state();
 
         let result = get_directory_path(

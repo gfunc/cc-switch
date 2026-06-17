@@ -40,6 +40,9 @@ mod usage_script;
 mod web;
 mod web_server;
 
+#[cfg(test)]
+pub mod testing;
+
 pub use app_config::{AppType, InstalledSkill, McpApps, McpServer, MultiAppConfig, SkillApps};
 pub use codex_config::{get_codex_auth_path, get_codex_config_path, write_codex_live_atomic};
 pub use commands::open_provider_terminal;
