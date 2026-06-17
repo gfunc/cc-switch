@@ -58,6 +58,12 @@ const ToolsPanel: React.FC = () => {
 
   const unsupportedProfile = getOpenClawUnsupportedProfile(config.profile);
 
+  const isToolsEmpty =
+    toolsData &&
+    !toolsData.profile &&
+    !(toolsData.allow?.length) &&
+    !(toolsData.deny?.length);
+
   const profileLabels = useMemo<Record<OpenClawToolsProfile, string>>(
     () => ({
       minimal: t("openclaw.tools.profileMinimal", {
@@ -128,6 +134,15 @@ const ToolsPanel: React.FC = () => {
       <p className="text-sm text-muted-foreground mb-6">
         {t("openclaw.tools.description")}
       </p>
+
+      {isToolsEmpty && (
+        <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground mb-6">
+          {t("openclaw.tools.emptyState", {
+            defaultValue:
+              "No tools configuration found. Choose a profile or add allow/deny patterns to create the tools section.",
+          })}
+        </div>
+      )}
 
       {unsupportedProfile && (
         <Alert className="mb-6 border-amber-500/30 bg-amber-500/5">
