@@ -2853,5 +2853,11 @@
     "expiredHint": "{{tool}}コマンドを実行してログインを更新してください",
     "queryFailed": "クエリに失敗しました",
     "refresh": "更新"
+  },
+  "logout": {
+    "confirmTitle": "ログアウトしますか？",
+    "confirmMessage": "現在のセッションが無効になり、ログインページに戻ります。",
+    "confirmAction": "ログアウト",
+    "serverInvalidationWarning": "ローカルではログアウトしましたが、サーバーセッションの無効化に失敗した可能性があります。"
   }
 }

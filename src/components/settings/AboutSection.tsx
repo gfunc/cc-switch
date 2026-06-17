@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { getVersion } from "@tauri-apps/api/app";
+import { getCurrentVersion } from "@/lib/updater";
 import { settingsApi } from "@/lib/api";
 import type {
   ToolInstallation,
@@ -390,7 +390,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     // 拆成两条独立链路：应用版本一拿到就立刻显示，工具探测各自渐进刷新，互不阻塞。
     const loadAppVersion = async () => {
       try {
-        const appVersion = await getVersion();
+        const appVersion = await getCurrentVersion();
         appVersionCache = appVersion;
         if (active) {
           setVersion(appVersion);

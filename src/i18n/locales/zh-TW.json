@@ -2825,5 +2825,11 @@
     "expiredHint": "請執行 {{tool}} 命令重新整理登入",
     "queryFailed": "查詢失敗",
     "refresh": "重新整理"
+  },
+  "logout": {
+    "confirmTitle": "登出？",
+    "confirmMessage": "這將使目前工作階段失效並返回登入頁面。",
+    "confirmAction": "登出",
+    "serverInvalidationWarning": "已在本地登出，但伺服器工作階段失效可能失敗。"
   }
 }

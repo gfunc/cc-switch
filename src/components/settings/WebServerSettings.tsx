@@ -42,6 +42,13 @@ export function WebServerSettings() {
 
   useEffect(() => {
     if (!desktopMode) {
+      // In web mode the server is already running (that's how we got here).
+      setIsRunning(true);
+      setServerUrl(window.location.href);
+      setPort(
+        Number(window.location.port) ||
+          (window.location.protocol === "https:" ? 443 : 80),
+      );
       return;
     }
 
@@ -227,7 +234,14 @@ export function WebServerSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!desktopMode && (
+        {!desktopMode ? (
+          <div className="rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-800 dark:text-blue-300">
+            {t("settings.webServer.webModeInfo", {
+              defaultValue:
+                "You are using the web interface. The server is managed by the host process.",
+            })}
+          </div>
+        ) : (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
             {t("settings.webServer.desktopOnly", {
               defaultValue:
@@ -357,7 +371,7 @@ export function WebServerSettings() {
         )}
 
         {/* Access Token */}
-        {isRunning && (
+        {desktopMode && isRunning && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">
@@ -396,36 +410,40 @@ export function WebServerSettings() {
         )}
 
         {/* Start/Stop button */}
-        <div className="flex items-center gap-2">
-          {isRunning ? (
-            <Button
-              variant="destructive"
-              onClick={handleStop}
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Square className="w-4 h-4 mr-2" />
-              )}
-              {t("settings.webServer.stop", { defaultValue: "Stop Server" })}
-            </Button>
-          ) : (
-            <Button
-              onClick={handleStart}
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Play className="w-4 h-4 mr-2" />
-              )}
-              {t("settings.webServer.start", { defaultValue: "Start Server" })}
-            </Button>
-          )}
-        </div>
+        {desktopMode && (
+          <div className="flex items-center gap-2">
+            {isRunning ? (
+              <Button
+                variant="destructive"
+                onClick={handleStop}
+                disabled={isLoading}
+                className="w-full"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Square className="w-4 h-4 mr-2" />
+                )}
+                {t("settings.webServer.stop", { defaultValue: "Stop Server" })}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleStart}
+                disabled={isLoading}
+                className="w-full"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4 mr-2" />
+                )}
+                {t("settings.webServer.start", {
+                  defaultValue: "Start Server",
+                })}
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="p-3 bg-muted rounded-lg">
           <p className="text-xs text-muted-foreground">

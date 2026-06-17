@@ -2853,5 +2853,11 @@
     "expiredHint": "请运行 {{tool}} 命令刷新登录",
     "queryFailed": "查询失败",
     "refresh": "刷新"
+  },
+  "logout": {
+    "confirmTitle": "退出登录？",
+    "confirmMessage": "这将使当前会话失效并返回登录页面。",
+    "confirmAction": "退出登录",
+    "serverInvalidationWarning": "已在本地退出登录，但服务器会话失效可能失败。"
   }
 }

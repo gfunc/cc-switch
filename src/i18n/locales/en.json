@@ -2853,5 +2853,11 @@
     "expiredHint": "Run the {{tool}} command to refresh your login",
     "queryFailed": "Query failed",
     "refresh": "Refresh"
+  },
+  "logout": {
+    "confirmTitle": "Log out?",
+    "confirmMessage": "This will invalidate your current session and return you to the login page.",
+    "confirmAction": "Log out",
+    "serverInvalidationWarning": "Logged out locally, but server session invalidation may have failed."
   }
 }
