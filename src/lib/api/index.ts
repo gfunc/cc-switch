@@ -15,7 +15,8 @@ import { proxyApi as tauriProxyApi } from "./proxy";
 import { openclawApi as tauriOpenclawApi } from "./openclaw";
 import { hermesApi as tauriHermesApi } from "./hermes";
 import { sessionsApi as tauriSessionsApi } from "./sessions";
-import { workspaceApi } from "./workspace";
+import { workspaceApi as tauriWorkspaceApi } from "./workspace";
+import { workspaceApi as webWorkspaceApi } from "./web/workspace";
 import * as tauriConfigApi from "./config";
 import { authApi } from "./auth";
 
@@ -62,5 +63,5 @@ export const openclawApi = isTauri() ? tauriOpenclawApi : webOpenclawApi;
 export const hermesApi = isTauri() ? tauriHermesApi : webHermesApi;
 export { usageApi };
 export { vscodeApi };
-export { workspaceApi };
+export const workspaceApi = isTauri() ? tauriWorkspaceApi : webWorkspaceApi;
 export { authApi };
