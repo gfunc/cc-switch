@@ -33,11 +33,13 @@ const OPENCLAW_TOOLS_PROFILES: &[&str] = &["minimal", "coding", "messaging", "fu
 /// 默认路径: `~/.openclaw/`
 /// 可通过 settings.openclaw_config_dir 覆盖
 pub fn get_openclaw_dir() -> PathBuf {
-    if let Some(override_dir) = get_openclaw_override_dir() {
-        return override_dir;
-    }
-
-    crate::config::get_home_dir().join(".openclaw")
+    let dir = if let Some(override_dir) = get_openclaw_override_dir() {
+        override_dir
+    } else {
+        crate::config::get_home_dir().join(".openclaw")
+    };
+    log::debug!("Resolved OpenClaw config directory: {}", dir.display());
+    dir
 }
 
 /// 获取 OpenClaw 配置文件路径
@@ -198,7 +200,9 @@ pub struct OpenClawToolsConfig {
 /// 支持 JSON5 格式，返回完整的配置 JSON 对象
 pub fn read_openclaw_config() -> Result<Value, AppError> {
     let path = get_openclaw_config_path();
+    log::debug!("Reading OpenClaw config from: {}", path.display());
     if !path.exists() {
+        log::debug!("OpenClaw config file does not exist, returning default");
         return Ok(default_openclaw_config_value());
     }
 
@@ -212,8 +216,13 @@ pub fn read_openclaw_config() -> Result<Value, AppError> {
 /// 解析失败时返回单条 parse 警告，不抛出错误。
 pub fn scan_openclaw_config_health() -> Result<Vec<OpenClawHealthWarning>, AppError> {
     let path = get_openclaw_config_path();
+    log::debug!("Scanning OpenClaw config health at: {}", path.display());
     if !path.exists() {
-        return Ok(Vec::new());
+        return Ok(vec![warning(
+            "config_not_found",
+            format!("OpenClaw config file not found at {}. The config panel will appear empty until the file is created or imported.", path.display()),
+            Some("openclaw.json"),
+        )]);
     }
 
     let content = fs::read_to_string(&path).map_err(|e| AppError::io(&path, e))?;
@@ -377,6 +386,8 @@ impl OpenClawConfigDocument {
 }
 
 fn write_root_section(section: &str, value: &Value) -> Result<OpenClawWriteOutcome, AppError> {
+    let path = get_openclaw_config_path();
+    log::debug!("Writing OpenClaw section '{}' to: {}", section, path.display());
     let mut document = OpenClawConfigDocument::load()?;
     document.set_root_section(section, value)?;
     document.save()
@@ -1085,5 +1096,22 @@ mod tests {
             let written = fs::read_to_string(get_openclaw_config_path()).unwrap();
             assert!(written.contains("\"providers\": {}"));
         });
+    }
+
+    #[test]
+    #[serial]
+    fn scan_health_warns_when_config_file_missing() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("CC_SWITCH_TEST_HOME", temp.path());
+        std::env::set_var("HOME", temp.path());
+        // Ensure no openclaw.json exists.
+
+        let warnings = scan_openclaw_config_health().unwrap();
+        let codes: Vec<_> = warnings.iter().map(|w| w.code.clone()).collect();
+        assert!(
+            codes.contains(&"config_not_found".to_string()),
+            "expected config_not_found warning, got {:?}",
+            codes
+        );
     }
 }
