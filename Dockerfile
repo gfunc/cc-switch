@@ -7,7 +7,7 @@ FROM node:22-bookworm AS web-builder
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
 
 WORKDIR /app
-RUN corepack enable
+RUN npm install -g pnpm@10.30.1 --registry=https://registry.npmmirror.com
 RUN npm config set registry https://registry.npmmirror.com
 RUN pnpm config set registry https://registry.npmmirror.com
 
