@@ -79,6 +79,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn login_route_returns_jwt_on_valid_token() {
+        crate::web::middleware::auth::reset_auth_token_cache();
         unsafe { env::set_var("AUTH_TOKEN", "test-login-secret") };
 
         let response = login_route(Json(LoginRequest {
@@ -95,6 +96,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn login_route_rejects_invalid_token() {
+        crate::web::middleware::auth::reset_auth_token_cache();
         unsafe { env::set_var("AUTH_TOKEN", "correct-secret") };
 
         let response = login_route(Json(LoginRequest {
@@ -111,6 +113,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn logout_route_revokes_token() {
+        crate::web::middleware::auth::reset_auth_token_cache();
         unsafe { env::set_var("AUTH_TOKEN", "logout-test-secret") };
         let _ = get_auth_token();
 

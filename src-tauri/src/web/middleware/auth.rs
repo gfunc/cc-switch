@@ -84,13 +84,29 @@ pub fn revoke_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> 
     Ok(claims)
 }
 
-fn auth_token_path() -> PathBuf {
-    let mut dir = dirs::config_dir()
+fn legacy_auth_token_path() -> PathBuf {
+    dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("cc-switch");
-    let _ = fs::create_dir_all(&dir);
-    dir.push(AUTH_TOKEN_FILE);
-    dir
+        .join("cc-switch")
+        .join(AUTH_TOKEN_FILE)
+}
+
+fn auth_token_path() -> PathBuf {
+    // Use the app's config dir (~/.cc-switch) so the token is co-located with
+    // the database and other app data. This avoids relying on the host's
+    // XDG_CONFIG_HOME / ~/.config permissions, which is the usual cause of
+    // token rotation on Docker restarts.
+    let new_path = crate::config::get_app_config_dir().join(AUTH_TOKEN_FILE);
+
+    // If the legacy ~/.config/cc-switch/auth_token file exists, keep using it
+    // so existing installations don't get their token rotated unexpectedly.
+    let legacy = legacy_auth_token_path();
+    if legacy.exists() {
+        return legacy;
+    }
+
+    let _ = fs::create_dir_all(new_path.parent().expect("auth_token path has no parent"));
+    new_path
 }
 
 /// Get or load the AUTH_TOKEN.
@@ -206,6 +222,15 @@ pub fn generate_token(user_id: &str) -> Result<String, jsonwebtoken::errors::Err
     )
 }
 
+/// Test helper: clear the cached AUTH_TOKEN so the next `get_auth_token()` call
+/// re-reads from environment / file. Only available under `#[cfg(test)]`.
+#[cfg(test)]
+pub fn reset_auth_token_cache() {
+    if let Some(cache) = AUTH_TOKEN.get() {
+        *cache.lock().expect("auth token cache lock poisoned") = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,14 +238,18 @@ mod tests {
     use std::env;
 
     #[test]
+    #[serial]
     fn generated_token_contains_jti() {
+        reset_auth_token_cache();
         let token = generate_token("admin").expect("token generation failed");
         let claims = validate_token(&token).expect("token validation failed");
         assert!(!claims.jti.is_empty());
     }
 
     #[test]
+    #[serial]
     fn revoked_jti_is_rejected() {
+        reset_auth_token_cache();
         let token = generate_token("admin").expect("token generation failed");
         let jti = validate_token(&token).unwrap().jti;
         assert!(!is_jti_revoked(&jti));
@@ -231,6 +260,7 @@ mod tests {
     #[test]
     #[serial]
     fn auth_token_loaded_from_env() {
+        reset_auth_token_cache();
         unsafe { env::set_var("AUTH_TOKEN", "test-secret-from-env") };
         let token = get_auth_token();
         assert_eq!(token, "test-secret-from-env");
@@ -240,6 +270,7 @@ mod tests {
     #[test]
     #[serial]
     fn auth_token_returns_non_empty_string() {
+        reset_auth_token_cache();
         unsafe { env::remove_var("AUTH_TOKEN") };
         let token = get_auth_token();
         assert!(!token.is_empty());
@@ -248,6 +279,7 @@ mod tests {
     #[test]
     #[serial]
     fn rotate_auth_token_invalidates_old_tokens() {
+        reset_auth_token_cache();
         unsafe { env::set_var("AUTH_TOKEN", "initial-rotation-secret") };
         // Prime the cache.
         let _ = get_auth_token();
