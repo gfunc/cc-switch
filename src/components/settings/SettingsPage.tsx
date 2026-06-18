@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Loader2,
@@ -107,6 +108,7 @@ export function SettingsPage({
   } = useImportExport({ onImportSuccess });
 
   const { data: installedSkills } = useInstalledSkills();
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<string>("general");
   const [showRestartPrompt, setShowRestartPrompt] = useState(false);
@@ -265,9 +267,12 @@ export function SettingsPage({
                     <SkillStorageLocationSettings
                       value={settings.skillStorageLocation ?? "cc_switch"}
                       installedCount={installedSkills?.length ?? 0}
-                      onMigrated={(location) =>
-                        updateSettings({ skillStorageLocation: location })
-                      }
+                      onMigrated={(location) => {
+                        updateSettings({ skillStorageLocation: location });
+                        queryClient.invalidateQueries({
+                          queryKey: ["settings"],
+                        });
+                      }}
                     />
                     <SkillSyncMethodSettings
                       value={settings.skillSyncMethod ?? "auto"}
