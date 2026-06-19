@@ -1153,8 +1153,54 @@ impl SkillService {
         db: &Arc<Database>,
         target: SkillStorageLocation,
     ) -> Result<MigrationResult> {
+        // web/Docker 模式下设置存储在 SQLite 的 app_settings 记录中，
+        // 需要同步更新 skillStorageLocation，否则前端刷新后仍显示旧值。
+        // 桌面端使用文件设置，DB 中可能没有 app_settings，此时同步逻辑静默跳过。
+        let sync_db_skill_storage_location = |target: SkillStorageLocation| {
+            let location_str = match target {
+                SkillStorageLocation::CcSwitch => "cc_switch",
+                SkillStorageLocation::Unified => "unified",
+            };
+            if let Ok(conn) = db.conn.lock() {
+                let stored: Option<String> = conn
+                    .prepare("SELECT value FROM settings WHERE key = ?1")
+                    .ok()
+                    .and_then(|mut stmt| {
+                        stmt.query_row(["app_settings"], |row| row.get::<usize, String>(0))
+                            .ok()
+                    });
+                if let Some(json_str) = stored {
+                    if let Ok(mut value) =
+                        serde_json::from_str::<serde_json::Value>(&json_str)
+                    {
+                        value["skillStorageLocation"] =
+                            serde_json::Value::String(location_str.to_string());
+                        match serde_json::to_string(&value) {
+                            Ok(new_json) => {
+                                if let Err(e) = conn.execute(
+                                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                                    rusqlite::params!["app_settings", new_json],
+                                ) {
+                                    log::warn!(
+                                        "[migrate_storage] 无法同步 web settings 中的 skillStorageLocation: {e}"
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("[migrate_storage] 序列化 settings 失败: {e}")
+                            }
+                        }
+                    }
+                }
+            } else {
+                log::warn!("[migrate_storage] 无法获取数据库锁以同步 web settings");
+            }
+        };
+
         let current = crate::settings::get_skill_storage_location();
         if current == target {
+            // 即使文件设置已是指定值，仍补偿同步 DB，修复已处于不一致状态的数据
+            sync_db_skill_storage_location(target);
             return Ok(MigrationResult {
                 migrated_count: 0,
                 skipped_count: 0,
@@ -1211,43 +1257,7 @@ impl SkillService {
 
         // 3. 文件移动完成后才持久化设置
         crate::settings::set_skill_storage_location(target)?;
-
-        // 3.5 web/Docker 模式下设置存储在 SQLite 的 app_settings 记录中，
-        // 需要同步更新，否则前端刷新后仍显示旧值。
-        let location_str = match target {
-            SkillStorageLocation::CcSwitch => "cc_switch",
-            SkillStorageLocation::Unified => "unified",
-        };
-        if let Ok(conn) = db.conn.lock() {
-            let stored: Option<String> = conn
-                .prepare("SELECT value FROM settings WHERE key = ?1")
-                .ok()
-                .and_then(|mut stmt| {
-                    stmt.query_row(["app_settings"], |row| row.get::<usize, String>(0))
-                        .ok()
-                });
-            if let Some(json_str) = stored {
-                if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                    value["skillStorageLocation"] =
-                        serde_json::Value::String(location_str.to_string());
-                    match serde_json::to_string(&value) {
-                        Ok(new_json) => {
-                            if let Err(e) = conn.execute(
-                                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                                rusqlite::params!["app_settings", new_json],
-                            ) {
-                                log::warn!(
-                                    "[migrate_storage] 无法同步 web settings 中的 skillStorageLocation: {e}"
-                                );
-                            }
-                        }
-                        Err(e) => log::warn!("[migrate_storage] 序列化 settings 失败: {e}"),
-                    }
-                }
-            }
-        } else {
-            log::warn!("[migrate_storage] 无法获取数据库锁以同步 web settings");
-        }
+        sync_db_skill_storage_location(target);
 
         // 4. 刷新所有应用目录的 symlink（指向新 SSOT）
         for app in AppType::all() {
