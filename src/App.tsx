@@ -873,6 +873,18 @@ function App() {
   const handleImportSuccess = async () => {
     try {
       await queryClient.invalidateQueries({
+        queryKey: ["settings"],
+        refetchType: "all",
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["settings"],
+        type: "all",
+      });
+    } catch (error) {
+      console.error("[App] Failed to refresh settings after import", error);
+    }
+    try {
+      await queryClient.invalidateQueries({
         queryKey: ["providers"],
         refetchType: "all",
       });
