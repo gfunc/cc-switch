@@ -1572,6 +1572,42 @@ impl SkillService {
             .unwrap_or(false)
     }
 
+    /// 计算从 `from` 到 `to` 的相对路径。
+    ///
+    /// 当 `from` 和 `to` 没有共同前缀时返回 `None`（例如 Windows 下不同驱动器）。
+    /// 结果使用 `..` 向上回溯，使生成的路径在 `from` 目录下可解析。
+    fn make_relative_path(from: &Path, to: &Path) -> Option<PathBuf> {
+        let from_components: Vec<_> = from.components().collect();
+        let to_components: Vec<_> = to.components().collect();
+
+        // 找到共同前缀长度
+        let mut common = 0;
+        while common < from_components.len() && common < to_components.len() {
+            if from_components[common] != to_components[common] {
+                break;
+            }
+            common += 1;
+        }
+
+        // 没有共同前缀，无法构造相对路径
+        if common == 0 {
+            return None;
+        }
+
+        // 从 `from` 剩余的每一层都需要 `..` 向上回溯
+        let mut result = PathBuf::new();
+        for _ in common..from_components.len() {
+            result.push("..");
+        }
+
+        // 追加 `to` 的剩余部分
+        for comp in &to_components[common..] {
+            result.push(comp.as_os_str());
+        }
+
+        Some(result)
+    }
+
     /// 获取当前同步方式配置
     fn get_sync_method() -> SyncMethod {
         crate::settings::get_skill_sync_method()
@@ -1598,6 +1634,13 @@ impl SkillService {
 
         let dest = app_dir.join(directory);
 
+        // 优先使用相对路径作为 symlink 目标，这样在 HOME 路径变化的环境
+        //（如 Docker）中仍然有效。无法计算相对路径时回退到绝对路径。
+        let symlink_source = dest
+            .parent()
+            .and_then(|parent| Self::make_relative_path(parent, &source))
+            .unwrap_or_else(|| source.clone());
+
         let sync_method = Self::get_sync_method();
 
         match sync_method {
@@ -1613,7 +1656,7 @@ impl SkillService {
                 }
 
                 // 优先尝试 symlink
-                match Self::create_symlink(&source, &dest) {
+                match Self::create_symlink(&symlink_source, &dest) {
                     Ok(()) => {
                         log::debug!("Skill {directory} 已通过 symlink 同步到 {app:?}");
                         return Ok(());
@@ -1621,7 +1664,7 @@ impl SkillService {
                     Err(err) => {
                         log::warn!(
                             "Symlink 创建失败，将回退到文件复制: {} -> {}. 错误: {err:#}",
-                            source.display(),
+                            symlink_source.display(),
                             dest.display()
                         );
                     }
@@ -1634,7 +1677,7 @@ impl SkillService {
                 if dest.exists() || Self::is_symlink(&dest) {
                     Self::remove_path(&dest)?;
                 }
-                Self::create_symlink(&source, &dest)?;
+                Self::create_symlink(&symlink_source, &dest)?;
                 log::debug!("Skill {directory} 已通过 symlink 同步到 {app:?}");
             }
             SyncMethod::Copy => {
@@ -3122,6 +3165,40 @@ mod tests {
         assert!(
             dest.join("SKILL.md").is_file(),
             "existing destination skill should be preserved"
+        );
+    }
+
+    #[test]
+    fn make_relative_path_computes_sibling_dirs() {
+        let from = Path::new("/home/user/.claude/skills");
+        let to = Path::new("/home/user/.cc-switch/skills/my-skill");
+        let rel = SkillService::make_relative_path(from, to).expect("relative path");
+        assert_eq!(rel, PathBuf::from("../../.cc-switch/skills/my-skill"));
+    }
+
+    #[test]
+    fn make_relative_path_computes_child_dir() {
+        let from = Path::new("/home/user/.cc-switch");
+        let to = Path::new("/home/user/.cc-switch/skills/my-skill");
+        let rel = SkillService::make_relative_path(from, to).expect("relative path");
+        assert_eq!(rel, PathBuf::from("skills/my-skill"));
+    }
+
+    #[test]
+    fn make_relative_path_computes_parent_dir() {
+        let from = Path::new("/home/user/.cc-switch/skills/my-skill");
+        let to = Path::new("/home/user/.cc-switch");
+        let rel = SkillService::make_relative_path(from, to).expect("relative path");
+        assert_eq!(rel, PathBuf::from("../.."));
+    }
+
+    #[test]
+    fn make_relative_path_returns_none_for_different_windows_drives() {
+        let from = Path::new("C:/Users/alice/.claude/skills");
+        let to = Path::new("D:/cc-switch/skills/my-skill");
+        assert!(
+            SkillService::make_relative_path(from, to).is_none(),
+            "different Windows drives cannot be expressed as relative paths"
         );
     }
 }

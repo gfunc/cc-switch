@@ -1,5 +1,17 @@
 use cc_switch_lib::proxy::types::{AppProxyConfig, GlobalProxyConfig};
-use cc_switch_lib::Database;
+use cc_switch_lib::{AppType, Database, Provider};
+use serde_json::json;
+
+fn seed_provider(db: &Database, id: &str, app_type: AppType) {
+    let provider = Provider::with_id(
+        id.to_string(),
+        id.to_string(),
+        json!({"env": {}}),
+        None,
+    );
+    db.save_provider(app_type.as_str(), &provider)
+        .expect("seed provider");
+}
 
 // === Global Proxy Config ===
 
@@ -99,6 +111,7 @@ async fn get_provider_health_returns_healthy_default() {
 #[tokio::test]
 async fn update_provider_health_success_resets_failures() {
     let db = Database::memory().expect("create memory db");
+    seed_provider(&db, "p1", AppType::Claude);
     db.update_provider_health("p1", "claude", false, Some("error".to_string()))
         .await
         .expect("record failure");
@@ -117,6 +130,7 @@ async fn update_provider_health_success_resets_failures() {
 #[tokio::test]
 async fn update_provider_health_failure_increments_count() {
     let db = Database::memory().expect("create memory db");
+    seed_provider(&db, "p1", AppType::Claude);
     db.update_provider_health("p1", "claude", false, Some("timeout".to_string()))
         .await
         .expect("fail 1");
@@ -134,6 +148,7 @@ async fn update_provider_health_failure_increments_count() {
 #[tokio::test]
 async fn update_provider_health_with_threshold_marks_unhealthy() {
     let db = Database::memory().expect("create memory db");
+    seed_provider(&db, "p1", AppType::Claude);
     for _ in 0..2 {
         db.update_provider_health_with_threshold(
             "p1",
@@ -157,6 +172,7 @@ async fn update_provider_health_with_threshold_marks_unhealthy() {
 #[tokio::test]
 async fn reset_provider_health_returns_to_default() {
     let db = Database::memory().expect("create memory db");
+    seed_provider(&db, "p1", AppType::Claude);
     db.update_provider_health("p1", "claude", false, Some("error".to_string()))
         .await
         .expect("fail");
@@ -175,6 +191,8 @@ async fn reset_provider_health_returns_to_default() {
 #[tokio::test]
 async fn clear_all_provider_health_removes_all_records() {
     let db = Database::memory().expect("create memory db");
+    seed_provider(&db, "p1", AppType::Claude);
+    seed_provider(&db, "p2", AppType::Codex);
     db.update_provider_health("p1", "claude", false, None)
         .await
         .expect("fail p1");

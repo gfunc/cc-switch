@@ -1,4 +1,4 @@
-use cc_switch_lib::{delete_env_vars, restore_from_backup, BackupInfo, EnvConflict};
+use cc_switch_lib::{delete_env_vars, restore_env_backup, BackupInfo, EnvConflict};
 
 #[path = "support.rs"]
 mod support;
@@ -130,7 +130,7 @@ fn restore_from_backup_errors_when_file_missing() {
     reset_test_fs();
     ensure_test_home();
 
-    let result = restore_from_backup("/nonexistent/path/backup.json".to_string());
+    let result = restore_env_backup("/nonexistent/path/backup.json".to_string());
     assert!(result.is_err(), "should error for nonexistent file");
     let err = result.unwrap_err();
     assert!(
@@ -148,7 +148,7 @@ fn restore_from_backup_errors_when_file_not_valid_json() {
     let bad_file = home.join("bad-backup.json");
     std::fs::write(&bad_file, "this is not json at all").expect("write bad file");
 
-    let result = restore_from_backup(bad_file.to_string_lossy().to_string());
+    let result = restore_env_backup(bad_file.to_string_lossy().to_string());
     assert!(result.is_err(), "should error for invalid JSON");
     let err = result.unwrap_err();
     assert!(!err.is_empty(), "error message must not be empty");
@@ -163,7 +163,7 @@ fn restore_from_backup_errors_when_json_schema_wrong() {
     let bad_file = home.join("wrong-schema.json");
     std::fs::write(&bad_file, r#"{"someOtherField": 42}"#).expect("write wrong-schema file");
 
-    let result = restore_from_backup(bad_file.to_string_lossy().to_string());
+    let result = restore_env_backup(bad_file.to_string_lossy().to_string());
     assert!(result.is_err(), "should error for wrong schema JSON");
 }
 
@@ -177,7 +177,7 @@ fn restore_from_backup_succeeds_with_empty_conflicts() {
     let backup_file = home.join("empty-conflicts-backup.json");
     std::fs::write(&backup_file, valid_json).expect("write valid backup");
 
-    let result = restore_from_backup(backup_file.to_string_lossy().to_string());
+    let result = restore_env_backup(backup_file.to_string_lossy().to_string());
     assert!(
         result.is_ok(),
         "empty conflicts backup should restore without error: {result:?}"
@@ -284,7 +284,7 @@ fn restore_from_backup_unix_file_type_appends_export_line() {
     let backup_file = home.join("restore-test-backup.json");
     std::fs::write(&backup_file, json_str).expect("write backup");
 
-    let result = restore_from_backup(backup_file.to_string_lossy().to_string());
+    let result = restore_env_backup(backup_file.to_string_lossy().to_string());
     assert!(result.is_ok(), "restore should succeed: {result:?}");
 
     let content = std::fs::read_to_string(&shell_file).expect("read shell file after restore");

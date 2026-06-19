@@ -188,6 +188,48 @@ describe("useSettingsForm Hook", () => {
     expect(changeLanguageSpy).toHaveBeenCalledWith("en");
   });
 
+  it("should sync skillStorageLocation when query data changes after initialization", async () => {
+    useSettingsQueryMock.mockReturnValue({
+      data: {
+        showInTray: true,
+        minimizeToTrayOnClose: true,
+        enableClaudePluginIntegration: false,
+        claudeConfigDir: null,
+        codexConfigDir: null,
+        language: "zh",
+        skillStorageLocation: "cc_switch",
+      },
+      isLoading: false,
+    });
+
+    const { result, rerender } = renderHook(() => useSettingsForm());
+
+    await waitFor(() => {
+      expect(result.current.settings).not.toBeNull();
+    });
+
+    expect(result.current.settings?.skillStorageLocation).toBe("cc_switch");
+
+    useSettingsQueryMock.mockReturnValue({
+      data: {
+        showInTray: true,
+        minimizeToTrayOnClose: true,
+        enableClaudePluginIntegration: false,
+        claudeConfigDir: null,
+        codexConfigDir: null,
+        language: "zh",
+        skillStorageLocation: "unified",
+      },
+      isLoading: false,
+    });
+
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.settings?.skillStorageLocation).toBe("unified");
+    });
+  });
+
   it("should not call changeLanguage repeatedly when language is consistent in syncLanguage", async () => {
     useSettingsQueryMock.mockReturnValue({
       data: {

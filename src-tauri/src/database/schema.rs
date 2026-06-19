@@ -53,6 +53,7 @@ impl Database {
                 app_type TEXT NOT NULL,
                 url TEXT NOT NULL,
                 added_at INTEGER,
+                last_used INTEGER,
                 FOREIGN KEY (provider_id, app_type) REFERENCES providers(id, app_type) ON DELETE CASCADE
             )",
             [],
@@ -443,6 +444,11 @@ impl Database {
                         log::info!("迁移数据库从 v10 到 v11（usage_daily_rollups 保留 request_model 维度）");
                         Self::migrate_v10_to_v11(conn)?;
                         Self::set_user_version(conn, 11)?;
+                    }
+                    11 => {
+                        log::info!("迁移数据库从 v11 到 v12（provider_endpoints 增加 last_used 字段）");
+                        Self::migrate_v11_to_v12(conn)?;
+                        Self::set_user_version(conn, 12)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -1284,6 +1290,20 @@ impl Database {
         log::info!(
             "v10 -> v11 迁移完成：usage_daily_rollups 已保留 request_model/pricing_model 维度"
         );
+        Ok(())
+    }
+
+    /// v11 -> v12: provider_endpoints 增加 last_used 字段
+    fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
+        if Self::table_exists(conn, "provider_endpoints")? {
+            Self::add_column_if_missing(
+                conn,
+                "provider_endpoints",
+                "last_used",
+                "INTEGER",
+            )?;
+        }
+        log::info!("v11 -> v12 迁移完成：provider_endpoints 已添加 last_used 列");
         Ok(())
     }
 

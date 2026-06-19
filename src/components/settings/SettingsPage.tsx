@@ -267,9 +267,9 @@ export function SettingsPage({
                     <SkillStorageLocationSettings
                       value={settings.skillStorageLocation ?? "cc_switch"}
                       installedCount={installedSkills?.length ?? 0}
-                      onMigrated={(location) => {
+                      onMigrated={async (location) => {
                         updateSettings({ skillStorageLocation: location });
-                        queryClient.invalidateQueries({
+                        await queryClient.refetchQueries({
                           queryKey: ["settings"],
                         });
                       }}

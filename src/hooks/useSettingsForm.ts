@@ -134,6 +134,17 @@ export function useSettingsForm(): UseSettingsFormResult {
     syncLanguage(normalizedLanguage);
   }, [data, readPersistedLanguage, syncLanguage]);
 
+  // skillStorageLocation 由迁移 API 修改，不是通过表单直接编辑，
+  // 因此当后端 query 数据变化时需要同步回表单状态，避免 UI 显示旧值。
+  useEffect(() => {
+    if (!data) return;
+    const location = data.skillStorageLocation ?? "cc_switch";
+    setSettingsState((prev) => {
+      if (!prev || prev.skillStorageLocation === location) return prev;
+      return { ...prev, skillStorageLocation: location };
+    });
+  }, [data?.skillStorageLocation]);
+
   const updateSettings = useCallback(
     (updates: Partial<SettingsFormState>) => {
       setSettingsState((prev) => {

@@ -161,6 +161,8 @@ fn test_set_and_get_rectifier_config_round_trip() {
         enabled: false,
         request_thinking_signature: true,
         request_thinking_budget: false,
+        request_media_fallback: true,
+        request_media_heuristic: true,
     };
     db.set_rectifier_config(&config)
         .expect("set rectifier config");

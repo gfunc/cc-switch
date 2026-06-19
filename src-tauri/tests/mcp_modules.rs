@@ -548,6 +548,7 @@ fn mcp_apps_enabled_apps_list() {
         codex: false,
         gemini: true,
         opencode: false,
+        hermes: false,
     };
     let enabled = apps.enabled_apps();
     assert_eq!(enabled.len(), 2, "exactly 2 apps should be enabled");
@@ -572,6 +573,7 @@ fn mcp_server_serialization_roundtrip() {
             codex: false,
             gemini: false,
             opencode: true,
+            hermes: false,
         },
         description: Some("A test MCP server".to_string()),
         homepage: None,

@@ -9,7 +9,7 @@ use cc_switch_lib::proxy::types::{
     RectifierConfig,
 };
 use cc_switch_lib::proxy::{
-    model_mapper::{apply_model_mapping, has_thinking_enabled, ModelMapping},
+    model_mapper::{apply_model_mapping, ModelMapping},
     thinking_budget_rectifier::{rectify_thinking_budget, should_rectify_thinking_budget},
     thinking_rectifier::{rectify_anthropic_request, should_rectify_thinking_signature},
 };
@@ -30,7 +30,7 @@ fn make_provider_full_mapping() -> Provider {
                 "ANTHROPIC_DEFAULT_HAIKU_MODEL": "haiku-mapped",
                 "ANTHROPIC_DEFAULT_SONNET_MODEL": "sonnet-mapped",
                 "ANTHROPIC_DEFAULT_OPUS_MODEL": "opus-mapped",
-                "ANTHROPIC_REASONING_MODEL": "reasoning-model"
+                "ANTHROPIC_DEFAULT_FABLE_MODEL": "fable-mapped"
             }
         }),
         website_url: None,
@@ -62,13 +62,13 @@ fn make_provider_no_mapping() -> Provider {
     }
 }
 
-fn make_provider_reasoning_only() -> Provider {
+fn make_provider_default_only() -> Provider {
     Provider {
-        id: "reasoning-only".to_string(),
-        name: "Reasoning Only".to_string(),
+        id: "default-only".to_string(),
+        name: "Default Only".to_string(),
         settings_config: json!({
             "env": {
-                "ANTHROPIC_REASONING_MODEL": "reasoning-only-model"
+                "ANTHROPIC_MODEL": "default-model"
             }
         }),
         website_url: None,
@@ -110,6 +110,8 @@ fn enabled_config() -> RectifierConfig {
         enabled: true,
         request_thinking_signature: true,
         request_thinking_budget: true,
+        request_media_fallback: true,
+        request_media_heuristic: true,
     }
 }
 
@@ -118,6 +120,8 @@ fn disabled_config() -> RectifierConfig {
         enabled: false,
         request_thinking_signature: true,
         request_thinking_budget: true,
+        request_media_fallback: true,
+        request_media_heuristic: true,
     }
 }
 
@@ -288,8 +292,8 @@ fn test_model_mapping_from_provider_full() {
     assert_eq!(mapping.haiku_model.as_deref(), Some("haiku-mapped"));
     assert_eq!(mapping.sonnet_model.as_deref(), Some("sonnet-mapped"));
     assert_eq!(mapping.opus_model.as_deref(), Some("opus-mapped"));
+    assert_eq!(mapping.fable_model.as_deref(), Some("fable-mapped"));
     assert_eq!(mapping.default_model.as_deref(), Some("default-model"));
-    assert_eq!(mapping.reasoning_model.as_deref(), Some("reasoning-model"));
 }
 
 /// Test 10: Empty-string env values are treated as None (not mapped)
@@ -303,35 +307,27 @@ fn test_model_mapping_empty_string_treated_as_none() {
     assert_eq!(mapping.default_model.as_deref(), Some("fallback-model"));
 }
 
-/// Test 11: has_thinking_enabled handles all thinking type values
+/// Test 11: apply_model_mapping maps sonnet model
 #[test]
-fn test_has_thinking_enabled_all_variants() {
-    assert!(has_thinking_enabled(
-        &json!({"thinking": {"type": "enabled"}})
-    ));
-    assert!(has_thinking_enabled(
-        &json!({"thinking": {"type": "adaptive"}})
-    ));
-    assert!(!has_thinking_enabled(
-        &json!({"thinking": {"type": "disabled"}})
-    ));
-    assert!(!has_thinking_enabled(&json!({})));
-    assert!(!has_thinking_enabled(&json!({"thinking": {}})));
-    // Unknown type treated as disabled
-    assert!(!has_thinking_enabled(
-        &json!({"thinking": {"type": "future_type"}})
-    ));
+fn test_apply_model_mapping_sonnet() {
+    let provider = make_provider_full_mapping();
+    let body = json!({"model": "claude-sonnet-4-5"});
+    let (result, original, mapped) = apply_model_mapping(body, &provider);
+    assert_eq!(result["model"], "sonnet-mapped");
+    assert_eq!(original.as_deref(), Some("claude-sonnet-4-5"));
+    assert_eq!(mapped.as_deref(), Some("sonnet-mapped"));
 }
 
-/// Test 12: apply_model_mapping – thinking mode selects reasoning model first
+/// Test 12: apply_model_mapping maps fable model and preserves other fields
 #[test]
-fn test_apply_model_mapping_thinking_mode_uses_reasoning_first() {
+fn test_apply_model_mapping_fable_preserves_other_fields() {
     let provider = make_provider_full_mapping();
-    let body = json!({"model": "claude-sonnet-4-5", "thinking": {"type": "enabled"}});
+    let body = json!({"model": "claude-fable-5", "max_tokens": 1024});
     let (result, original, mapped) = apply_model_mapping(body, &provider);
-    assert_eq!(result["model"], "reasoning-model");
-    assert_eq!(original.as_deref(), Some("claude-sonnet-4-5"));
-    assert_eq!(mapped.as_deref(), Some("reasoning-model"));
+    assert_eq!(result["model"], "fable-mapped");
+    assert_eq!(original.as_deref(), Some("claude-fable-5"));
+    assert_eq!(mapped.as_deref(), Some("fable-mapped"));
+    assert_eq!(result["max_tokens"], 1024);
 }
 
 /// Test 13: apply_model_mapping – no mapping configured, body unchanged
@@ -347,16 +343,15 @@ fn test_apply_model_mapping_no_mapping_passthrough() {
     assert_eq!(result["max_tokens"], 1024);
 }
 
-/// Test 14: apply_model_mapping – only reasoning model configured, non-thinking not mapped
+/// Test 14: apply_model_mapping – only default model configured maps unknown models
 #[test]
-fn test_apply_model_mapping_reasoning_only_no_match_non_thinking() {
-    let provider = make_provider_reasoning_only();
-    let body = json!({"model": "claude-sonnet-4-5", "thinking": {"type": "disabled"}});
+fn test_apply_model_mapping_default_only_maps_unknown() {
+    let provider = make_provider_default_only();
+    let body = json!({"model": "claude-sonnet-4-5"});
     let (result, original, mapped) = apply_model_mapping(body, &provider);
-    // Reasoning model only kicks in for thinking mode; no other mapping available
-    assert_eq!(result["model"], "claude-sonnet-4-5");
+    assert_eq!(result["model"], "default-model");
     assert_eq!(original.as_deref(), Some("claude-sonnet-4-5"));
-    assert!(mapped.is_none());
+    assert_eq!(mapped.as_deref(), Some("default-model"));
 }
 
 /// Test 15: apply_model_mapping – case-insensitive model type detection
@@ -448,6 +443,8 @@ fn test_should_rectify_thinking_signature_respects_config_switches() {
         enabled: true,
         request_thinking_signature: false,
         request_thinking_budget: true,
+        request_media_fallback: true,
+        request_media_heuristic: true,
     };
     assert!(!should_rectify_thinking_signature(error, &sub_off));
 
@@ -593,6 +590,8 @@ fn test_should_rectify_thinking_budget_config_switches() {
         enabled: true,
         request_thinking_signature: true,
         request_thinking_budget: false,
+        request_media_fallback: true,
+        request_media_heuristic: true,
     };
     assert!(!should_rectify_thinking_budget(error, &sub_off));
 }

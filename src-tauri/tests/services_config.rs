@@ -361,7 +361,7 @@ fn validate_claude_provider_rejects_non_object() {
         json!("still not an object"),
         None,
     );
-    let result = ProviderService::add(&state, AppType::Claude, bad_provider);
+    let result = ProviderService::add(&state, AppType::Claude, bad_provider, false);
     assert!(
         result.is_err(),
         "non-object Claude config should be rejected"
@@ -382,7 +382,7 @@ fn validate_codex_provider_rejects_missing_auth() {
         json!({ "config": "base_url = \"https://example.com\"" }),
         None,
     );
-    let result = ProviderService::add(&state, AppType::Codex, no_auth_provider);
+    let result = ProviderService::add(&state, AppType::Codex, no_auth_provider, false);
     assert!(
         result.is_err(),
         "Codex provider without auth should be rejected"

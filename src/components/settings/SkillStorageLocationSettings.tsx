@@ -19,7 +19,7 @@ import type { SkillStorageLocation } from "@/types";
 export interface SkillStorageLocationSettingsProps {
   value: SkillStorageLocation;
   installedCount: number;
-  onMigrated: (target: SkillStorageLocation) => void;
+  onMigrated: (target: SkillStorageLocation) => void | Promise<void>;
 }
 
 export function SkillStorageLocationSettings({
@@ -60,7 +60,7 @@ export function SkillStorageLocationSettings({
           }),
         );
       }
-      onMigrated(target);
+      await onMigrated(target);
     } catch (error) {
       toast.error(String(error));
     } finally {

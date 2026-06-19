@@ -1,8 +1,22 @@
-use cc_switch_lib::{AppType, ProviderService};
+use cc_switch_lib::{AppType, Provider, ProviderService};
+use serde_json::json;
 
 #[path = "support.rs"]
 mod support;
 use support::{create_test_state, ensure_test_home, reset_test_fs, test_mutex};
+
+fn seed_provider(state: &cc_switch_lib::AppState, id: &str, app_type: AppType) {
+    let provider = Provider::with_id(
+        id.to_string(),
+        id.to_string(),
+        json!({"env": {}}),
+        None,
+    );
+    state
+        .db
+        .save_provider(app_type.as_str(), &provider)
+        .expect("seed provider");
+}
 
 #[test]
 fn get_custom_endpoints_returns_empty_for_unknown_provider() {
@@ -54,6 +68,7 @@ fn add_custom_endpoint_with_trailing_slash_normalizes_url() {
     ensure_test_home();
 
     let state = create_test_state().expect("create state");
+    seed_provider(&state, "prov-normalize", AppType::Claude);
     ProviderService::add_custom_endpoint(
         &state,
         AppType::Claude,
@@ -85,6 +100,7 @@ fn add_custom_endpoint_succeeds_for_new_provider_id() {
     ensure_test_home();
 
     let state = create_test_state().expect("create state");
+    seed_provider(&state, "brand-new-provider", AppType::Claude);
     let result = ProviderService::add_custom_endpoint(
         &state,
         AppType::Claude,
@@ -104,6 +120,7 @@ fn get_custom_endpoints_returns_endpoint_after_add() {
     ensure_test_home();
 
     let state = create_test_state().expect("create state");
+    seed_provider(&state, "prov-get-after-add", AppType::Claude);
     ProviderService::add_custom_endpoint(
         &state,
         AppType::Claude,
@@ -128,6 +145,7 @@ fn remove_custom_endpoint_removes_added_endpoint() {
 
     let state = create_test_state().expect("create state");
     let url = "https://removable.endpoint/api";
+    seed_provider(&state, "prov-remove", AppType::Claude);
     ProviderService::add_custom_endpoint(&state, AppType::Claude, "prov-remove", url.to_string())
         .expect("add should succeed");
 
@@ -156,6 +174,7 @@ fn remove_custom_endpoint_with_trailing_slash_normalizes_before_remove() {
 
     let state = create_test_state().expect("create state");
     let url = "https://trailing.slash/api";
+    seed_provider(&state, "prov-trail", AppType::Claude);
     ProviderService::add_custom_endpoint(&state, AppType::Claude, "prov-trail", url.to_string())
         .expect("add should succeed");
 
@@ -202,6 +221,7 @@ fn update_endpoint_last_used_sets_timestamp() {
 
     let state = create_test_state().expect("create state");
     let url = "https://update.last.used/api";
+    seed_provider(&state, "prov-update-ts", AppType::Claude);
     ProviderService::add_custom_endpoint(
         &state,
         AppType::Claude,
@@ -245,6 +265,7 @@ fn multiple_endpoints_can_be_added_to_same_provider() {
 
     let state = create_test_state().expect("create state");
     let provider_id = "prov-multi";
+    seed_provider(&state, provider_id, AppType::Claude);
 
     for i in 0..3 {
         ProviderService::add_custom_endpoint(
@@ -268,6 +289,7 @@ fn get_custom_endpoints_results_have_required_fields() {
     ensure_test_home();
 
     let state = create_test_state().expect("create state");
+    seed_provider(&state, "prov-fields", AppType::Claude);
     ProviderService::add_custom_endpoint(
         &state,
         AppType::Claude,
@@ -292,6 +314,7 @@ fn codex_provider_also_supports_custom_endpoints() {
     ensure_test_home();
 
     let state = create_test_state().expect("create state");
+    seed_provider(&state, "codex-prov", AppType::Codex);
     ProviderService::add_custom_endpoint(
         &state,
         AppType::Codex,
