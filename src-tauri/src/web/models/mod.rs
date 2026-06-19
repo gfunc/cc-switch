@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::services::skill::SkillStorageLocation;
+
 pub mod app_state;
 
 pub type ProviderCategory = String;
@@ -184,6 +186,8 @@ pub struct Settings {
     pub current_provider_gemini: Option<String>,
     #[serde(rename = "skillSyncMethod")]
     pub skill_sync_method: Option<String>,
+    #[serde(rename = "skillStorageLocation")]
+    pub skill_storage_location: Option<SkillStorageLocation>,
     #[serde(rename = "webdavSync")]
     pub webdav_sync: Option<WebDavSyncSettings>,
     #[serde(rename = "preferredTerminal")]

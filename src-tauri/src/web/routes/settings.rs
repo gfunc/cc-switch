@@ -152,6 +152,7 @@ fn default_settings() -> Settings {
         current_provider_codex: None,
         current_provider_gemini: None,
         skill_sync_method: None,
+        skill_storage_location: None,
         webdav_sync: None,
         preferred_terminal: None,
         first_run_notice_confirmed: None,

@@ -269,8 +269,9 @@ export function SettingsPage({
                       installedCount={installedSkills?.length ?? 0}
                       onMigrated={async (location) => {
                         updateSettings({ skillStorageLocation: location });
-                        await queryClient.refetchQueries({
+                        await queryClient.invalidateQueries({
                           queryKey: ["settings"],
+                          refetchType: "all",
                         });
                       }}
                     />
