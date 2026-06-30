@@ -2551,6 +2551,7 @@ impl ProviderService {
             AppType::OpenCode => Self::extract_opencode_common_config(&provider.settings_config),
             AppType::OpenClaw => Self::extract_openclaw_common_config(&provider.settings_config),
             AppType::Hermes => Ok(String::new()), // Hermes doesn't use common config snippets
+            AppType::Kimi => Ok(String::new()),   // Kimi doesn't use common config snippets
         }
     }
 
@@ -2567,6 +2568,7 @@ impl ProviderService {
             AppType::OpenCode => Self::extract_opencode_common_config(settings_config),
             AppType::OpenClaw => Self::extract_openclaw_common_config(settings_config),
             AppType::Hermes => Ok(String::new()), // Hermes doesn't use common config snippets
+            AppType::Kimi => Ok(String::new()),   // Kimi doesn't use common config snippets
         }
     }
 
@@ -3018,6 +3020,16 @@ impl ProviderService {
                     ));
                 }
             }
+            AppType::Kimi => {
+                // Kimi: accept any JSON object for now
+                if !provider.settings_config.is_object() {
+                    return Err(AppError::localized(
+                        "provider.kimi.settings.not_object",
+                        "Kimi 配置必须是 JSON 对象",
+                        "Kimi configuration must be a JSON object",
+                    ));
+                }
+            }
         }
 
         // Validate and clean UsageScript configuration (common for all app types)
@@ -3200,8 +3212,8 @@ impl ProviderService {
 
                 Ok((api_key, base_url))
             }
-            AppType::OpenClaw | AppType::Hermes => {
-                // OpenClaw/Hermes use apiKey and baseUrl directly on the object
+            AppType::OpenClaw | AppType::Hermes | AppType::Kimi => {
+                // OpenClaw/Hermes/Kimi use apiKey and baseUrl directly on the object
                 let api_key = provider
                     .settings_config
                     .get("apiKey")
