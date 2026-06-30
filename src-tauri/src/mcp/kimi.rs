@@ -58,7 +58,7 @@ fn convert_to_kimi_format(spec: &Value) -> Result<Value, AppError> {
                 result.insert("url".into(), url.clone());
             }
             if let Some(headers) = obj.get("headers") {
-                result.insert("custom_headers".into(), headers.clone());
+                result.insert("headers".into(), headers.clone());
             }
         }
         "http" => {
@@ -66,7 +66,7 @@ fn convert_to_kimi_format(spec: &Value) -> Result<Value, AppError> {
                 result.insert("url".into(), url.clone());
             }
             if let Some(headers) = obj.get("headers") {
-                result.insert("custom_headers".into(), headers.clone());
+                result.insert("headers".into(), headers.clone());
             }
         }
         _ => return Err(AppError::McpValidation(format!("Unknown MCP type: {typ}"))),
@@ -82,20 +82,7 @@ fn convert_from_kimi_format(id: &str, spec: &Value) -> Result<Value, AppError> {
 
     let mut result = serde_json::Map::new();
 
-    let transport = obj
-        .get("transport")
-        .and_then(|v| v.as_str())
-        .unwrap_or("stdio");
-
-    if transport == "sse" || (transport == "stdio" && obj.contains_key("url")) {
-        result.insert("type".into(), json!("sse"));
-        if let Some(url) = obj.get("url") {
-            result.insert("url".into(), url.clone());
-        }
-        if let Some(headers) = obj.get("custom_headers") {
-            result.insert("headers".into(), headers.clone());
-        }
-    } else if obj.contains_key("command") || transport == "stdio" {
+    if obj.contains_key("command") {
         result.insert("type".into(), json!("stdio"));
         if let Some(command) = obj.get("command") {
             result.insert("command".into(), command.clone());
@@ -105,6 +92,18 @@ fn convert_from_kimi_format(id: &str, spec: &Value) -> Result<Value, AppError> {
         }
         if let Some(env) = obj.get("env") {
             result.insert("env".into(), env.clone());
+        }
+    } else if obj.contains_key("url") {
+        let transport = obj
+            .get("transport")
+            .and_then(|v| v.as_str())
+            .unwrap_or("http");
+        result.insert("type".into(), json!(transport));
+        if let Some(url) = obj.get("url") {
+            result.insert("url".into(), url.clone());
+        }
+        if let Some(headers) = obj.get("headers") {
+            result.insert("headers".into(), headers.clone());
         }
     } else {
         return Err(AppError::McpValidation(format!(
@@ -240,5 +239,44 @@ mod tests {
         let result = convert_to_kimi_format(&spec).unwrap();
         assert_eq!(result["transport"], "sse");
         assert_eq!(result["url"], "https://example.com/mcp");
+        assert_eq!(result["headers"]["Authorization"], "Bearer xxx");
+    }
+
+    #[test]
+    fn test_convert_http_to_kimi() {
+        let spec = json!({
+            "type": "http",
+            "url": "https://example.com/mcp",
+            "headers": { "Authorization": "Bearer xxx" }
+        });
+        let result = convert_to_kimi_format(&spec).unwrap();
+        assert!(result.get("transport").is_none());
+        assert_eq!(result["url"], "https://example.com/mcp");
+        assert_eq!(result["headers"]["Authorization"], "Bearer xxx");
+    }
+
+    #[test]
+    fn test_convert_kimi_http_to_unified() {
+        let spec = json!({
+            "url": "https://example.com/mcp",
+            "headers": { "Authorization": "Bearer xxx" }
+        });
+        let result = convert_from_kimi_format("remote", &spec).unwrap();
+        assert_eq!(result["type"], "http");
+        assert_eq!(result["url"], "https://example.com/mcp");
+        assert_eq!(result["headers"]["Authorization"], "Bearer xxx");
+    }
+
+    #[test]
+    fn test_convert_kimi_sse_to_unified() {
+        let spec = json!({
+            "transport": "sse",
+            "url": "https://example.com/mcp",
+            "headers": { "Authorization": "Bearer xxx" }
+        });
+        let result = convert_from_kimi_format("remote", &spec).unwrap();
+        assert_eq!(result["type"], "sse");
+        assert_eq!(result["url"], "https://example.com/mcp");
+        assert_eq!(result["headers"]["Authorization"], "Bearer xxx");
     }
 }
