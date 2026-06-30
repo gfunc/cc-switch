@@ -1453,6 +1453,21 @@ mod tests {
     }
 
     #[test]
+    fn resolve_credentials_kimi_snake_case() {
+        let p = provider_with(json!({
+            "base_url": "https://api.deepseek.com/",
+            "api_key": "sk-kimi",
+        }));
+        assert_eq!(
+            p.resolve_usage_credentials(&AppType::Kimi),
+            (
+                "https://api.deepseek.com".to_string(),
+                "sk-kimi".to_string()
+            )
+        );
+    }
+
+    #[test]
     fn resolve_credentials_openclaw_camel_case() {
         let p = provider_with(json!({
             "baseUrl": "https://api.deepseek.com",
