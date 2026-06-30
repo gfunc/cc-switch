@@ -892,7 +892,8 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
             log::debug!("Hermes provider '{}' written to live config", provider.id);
         }
         AppType::Kimi => {
-            log::debug!("Kimi live config is not yet implemented, skipping");
+            crate::kimi_config::set_provider(provider)?;
+            log::info!("Kimi provider '{}' written to live config", provider.id);
         }
     }
     Ok(())

@@ -199,7 +199,10 @@ impl Provider {
                 );
                 (base_url, api_key)
             }
-            AppType::Kimi => (String::new(), String::new()),
+            AppType::Kimi => (
+                str_at(self.settings_config.get("base_url")),
+                str_at(self.settings_config.get("api_key")),
+            ),
         };
 
         // Normalize like the JS-script path (extract_base_url_from_provider) so a
