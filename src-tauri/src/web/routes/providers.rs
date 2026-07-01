@@ -51,6 +51,8 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/claude-desktop-status", get(get_claude_desktop_status))
         .route("/import-openclaw-live", post(import_openclaw_live))
         .route("/import-hermes-live", post(import_hermes_live))
+        .route("/import-kimi-live", post(import_kimi_live))
+        .route("/kimi-live-ids", get(get_kimi_live_ids))
         .route(
             "/import-claude-desktop-from-claude",
             post(import_claude_desktop_from_claude),
@@ -441,6 +443,41 @@ async fn import_hermes_live(
     }
 }
 
+async fn import_kimi_live(
+    State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<usize>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match crate::services::provider::import_kimi_providers_from_live(&desktop) {
+        Ok(imported) => {
+            if imported > 0 {
+                crate::web::handlers::ws::broadcast_event(
+                    &ws_state,
+                    "provider.imported",
+                    json!({ "app": "kimi" }),
+                );
+            }
+            Json(ApiResponse::success(imported))
+        }
+        Err(e) => Json(ApiResponse::error(format!(
+            "Failed to import Kimi providers: {e}"
+        ))),
+    }
+}
+
+async fn get_kimi_live_ids() -> Json<ApiResponse<Vec<String>>> {
+    match crate::kimi_config::get_providers() {
+        Ok(providers) => Json(ApiResponse::success(
+            providers.into_iter().map(|(id, _)| id).collect(),
+        )),
+        Err(e) => Json(ApiResponse::error(format!(
+            "Failed to read Kimi live ids: {e}"
+        ))),
+    }
+}
+
 async fn import_claude_desktop_from_claude(
     State((state, ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
 ) -> Json<ApiResponse<usize>> {
@@ -491,6 +528,7 @@ async fn remove_from_live_config(
     let result = match app {
         "opencode" => crate::opencode_config::remove_provider(&id).map(|_| true),
         "openclaw" => crate::openclaw_config::remove_provider(&id).map(|_| true),
+        "kimi" => crate::kimi_config::remove_provider(&id).map(|_| true),
         _ => Err(crate::error::AppError::Config(format!(
             "remove-from-live not supported for app: {app}"
         ))),
@@ -670,6 +708,30 @@ async fn import_default_config(
         .cloned()
         .or(body_app)
         .unwrap_or_else(|| DEFAULT_APP_TYPE.to_string());
+
+    // Kimi uses additive provider management: import all existing providers from
+    // the live config.toml instead of a single default provider record.
+    if app == "kimi" {
+        let desktop = match state.desktop() {
+            Ok(d) => d,
+            Err(e) => return Json(ApiResponse::error(e)),
+        };
+        return match crate::services::provider::import_kimi_providers_from_live(&desktop) {
+            Ok(imported) => {
+                if imported > 0 {
+                    crate::web::handlers::ws::broadcast_event(
+                        &ws_state,
+                        "provider.imported",
+                        json!({ "app": "kimi" }),
+                    );
+                }
+                Json(ApiResponse::success(imported > 0))
+            }
+            Err(e) => Json(ApiResponse::error(format!(
+                "Failed to import Kimi providers: {e}"
+            ))),
+        };
+    }
 
     // Read config from remote server's filesystem
     let settings_config = match app.as_str() {

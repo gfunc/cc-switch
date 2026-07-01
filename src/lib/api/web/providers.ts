@@ -124,6 +124,14 @@ export const providersApi = {
     return post("/providers/import-hermes-live", {});
   },
 
+  async importKimiFromLive(): Promise<number> {
+    return post("/providers/import-kimi-live", {});
+  },
+
+  async getKimiLiveProviderIds(): Promise<string[]> {
+    return get("/providers/kimi-live-ids");
+  },
+
   async importClaudeDesktopFromClaude(): Promise<number> {
     return post("/providers/import-claude-desktop-from-claude", {});
   },

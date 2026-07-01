@@ -222,6 +222,10 @@ export function ProviderList({
         const count = await providersApi.importHermesFromLive();
         return count > 0;
       }
+      if (appId === "kimi") {
+        const count = await providersApi.importKimiFromLive();
+        return count > 0;
+      }
       if (appId === "claude-desktop") {
         const count = await providersApi.importClaudeDesktopFromClaude();
         return count > 0;
