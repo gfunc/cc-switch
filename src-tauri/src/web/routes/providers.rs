@@ -1331,6 +1331,38 @@ fn sync_switched_provider_runtime_state(
         crate::config::write_json_file(&path, &sanitized).map_err(|e| e.to_string())?;
     }
 
+    // Kimi uses additive provider management: write the switched provider to
+    // ~/.kimi-code/config.toml and set it as default_model.
+    if app_type == AppType::Kimi {
+        let provider = state.with_db(|db: &Connection| -> Result<Option<crate::provider::Provider>, String> {
+            let mut stmt = db
+                .prepare("SELECT id, name, settings_config FROM providers WHERE id = ?1 AND app_type = ?2")
+                .map_err(|e| e.to_string())?;
+
+            let provider: Option<crate::provider::Provider> = stmt
+                .query_row([provider_id, app], |row| {
+                    let id: String = row.get(0)?;
+                    let name: String = row.get(1)?;
+                    let settings_config_str: String = row.get(2)?;
+                    let settings_config = serde_json::from_str(&settings_config_str)
+                        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                    Ok(crate::provider::Provider::with_id(
+                        id,
+                        name,
+                        settings_config,
+                        None,
+                    ))
+                })
+                .ok();
+
+            Ok(provider)
+        })?;
+
+        if let Some(provider) = provider {
+            crate::kimi_config::set_provider(&provider).map_err(|e| e.to_string())?;
+        }
+    }
+
     Ok(())
 }
 

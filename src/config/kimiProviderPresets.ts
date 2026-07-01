@@ -52,6 +52,7 @@ export interface KimiProviderPreset {
   theme?: PresetTheme;
   icon?: string;
   iconColor?: string;
+  endpointCandidates?: string[];
   isCustomTemplate?: boolean;
 }
 
