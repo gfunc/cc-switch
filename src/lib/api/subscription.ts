@@ -27,14 +27,23 @@ export const subscriptionApi = {
   getCodingPlanQuota: (
     baseUrl: string,
     apiKey: string,
+    accessKeyId?: string,
+    secretAccessKey?: string,
   ): Promise<SubscriptionQuota> => {
     if (!isTauri()) {
       return post<SubscriptionQuota>("/providers/usage/coding-plan", {
         baseUrl,
         apiKey,
+        accessKeyId,
+        secretAccessKey,
       });
     }
-    return invoke("get_coding_plan_quota", { baseUrl, apiKey });
+    return invoke("get_coding_plan_quota", {
+      baseUrl,
+      apiKey,
+      accessKeyId,
+      secretAccessKey,
+    });
   },
   getBalance: (
     baseUrl: string,

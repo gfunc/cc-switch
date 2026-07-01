@@ -86,6 +86,10 @@ struct CredentialQuotaRequest {
     base_url: String,
     #[serde(rename = "apiKey")]
     api_key: String,
+    #[serde(rename = "accessKeyId")]
+    access_key_id: Option<String>,
+    #[serde(rename = "secretAccessKey")]
+    secret_access_key: Option<String>,
 }
 
 /// Query official balance for a base_url/api_key (web mirror of `get_balance`).
@@ -107,8 +111,8 @@ async fn query_coding_plan_quota(
     match crate::services::coding_plan::get_coding_plan_quota(
         &req.base_url,
         &req.api_key,
-        None,
-        None,
+        req.access_key_id.as_deref(),
+        req.secret_access_key.as_deref(),
     )
     .await
     {

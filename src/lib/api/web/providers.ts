@@ -61,7 +61,7 @@ export const providersApi = {
   },
 
   async updateTrayMenu(): Promise<boolean> {
-    console.warn("update_tray_menu not available in web mode");
+    // Tray menu is a desktop-only concept; no-op in web mode.
     return true;
   },
 
