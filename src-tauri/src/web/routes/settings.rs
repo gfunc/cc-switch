@@ -1,6 +1,6 @@
 use crate::app_config::AppType;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post, put},
     Json, Router,
 };
@@ -19,6 +19,7 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
     Router::new()
         .route("/", get(list_settings))
         .route("/", put(update_settings))
+        .route("/config-dir", get(get_config_dir))
         .route("/app-config-path", get(get_app_config_path))
         .route("/common-config/:app_type", get(get_common_config_snippet))
         .route("/common-config/:app_type", put(set_common_config_snippet))
@@ -228,6 +229,31 @@ async fn update_settings(
             e
         ))),
     }
+}
+
+async fn get_config_dir(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Json<ApiResponse<String>> {
+    let app = params.get("app").cloned().unwrap_or_default();
+
+    let dir = match AppType::from_str(&app) {
+        Ok(AppType::Claude) => crate::config::get_claude_config_dir(),
+        Ok(AppType::ClaudeDesktop) => {
+            match crate::claude_desktop_config::get_config_library_path() {
+                Ok(path) => path,
+                Err(e) => return Json(ApiResponse::error(e.to_string())),
+            }
+        }
+        Ok(AppType::Codex) => crate::codex_config::get_codex_config_dir(),
+        Ok(AppType::Gemini) => crate::gemini_config::get_gemini_dir(),
+        Ok(AppType::OpenCode) => crate::opencode_config::get_opencode_dir(),
+        Ok(AppType::OpenClaw) => crate::openclaw_config::get_openclaw_dir(),
+        Ok(AppType::Hermes) => crate::hermes_config::get_hermes_dir(),
+        Ok(AppType::Kimi) => crate::kimi_config::get_kimi_dir(),
+        Err(e) => return Json(ApiResponse::error(e.to_string())),
+    };
+
+    Json(ApiResponse::success(dir.to_string_lossy().to_string()))
 }
 
 async fn get_app_config_path(
