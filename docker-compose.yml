@@ -15,16 +15,15 @@ services:
       RUST_LOG: info
       CC_SWITCH_WEB_PORT: "13001"
       CC_SWITCH_WEB_BIND_ALL: "true"
-      CC_SWITCH_DB_PATH: /data/db/cc-switch.db
       TAURI_RESOURCE_DIR: "/app/src-tauri"
       AUTH_TOKEN: "${AUTH_TOKEN:-}"
     ports:
       - "${WEBSITE_PORT:-13001}:13001"
     volumes:
       # Mount the host home so the server can read live app configs
-      # (~/.hermes, ~/.claude, ~/.codex, ...). Default to the shell's $HOME:
+      # (~/.hermes, ~/.claude, ~/.codex, …). Default to the shell's $HOME:
       # Compose interpolates ${HOME} reliably, whereas a literal "~" is not
-      # portably expanded by Compose and silently mounts the wrong path -
+      # portably expanded by Compose and silently mounts the wrong path —
       # which makes "import current config" find no providers. Override with
       # HOST_HOME when running detached/rootless or as another user.
       - ${HOST_HOME:-${HOME}}:/host-home
