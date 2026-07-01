@@ -227,18 +227,29 @@ fn resolve_native_credentials(
 
 /// Resolve coding-plan credentials: ZenMux uses the script's own base_url/api_key;
 /// everything else falls back to the provider's stored credentials.
+/// Also returns the Volcengine control-plane AK/SK when present on the usage script.
 fn resolve_coding_plan_credentials(
     app_type: &AppType,
     provider: Option<&crate::provider::Provider>,
     usage_script: Option<&UsageScript>,
-) -> (String, String) {
+) -> (String, String, Option<String>, Option<String>) {
+    let access_key_id = usage_script
+        .and_then(|s| s.access_key_id.as_ref())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let secret_access_key = usage_script
+        .and_then(|s| s.secret_access_key.as_ref())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
     let is_zenmux = usage_script
         .and_then(|s| s.coding_plan_provider.as_deref())
         .map(|p| p.eq_ignore_ascii_case("zenmux"))
         .unwrap_or(false);
 
     if !is_zenmux {
-        return resolve_native_credentials(app_type, provider);
+        let (base_url, api_key) = resolve_native_credentials(app_type, provider);
+        return (base_url, api_key, access_key_id, secret_access_key);
     }
 
     let script_base_url = usage_script
@@ -252,14 +263,14 @@ fn resolve_coding_plan_credentials(
         .to_string();
 
     if !script_base_url.is_empty() && !script_api_key.is_empty() {
-        return (script_base_url, script_api_key);
+        return (script_base_url, script_api_key, access_key_id, secret_access_key);
     }
 
     let native = resolve_native_credentials(app_type, provider);
     if !native.0.is_empty() && !native.1.is_empty() {
-        native
+        (native.0, native.1, access_key_id, secret_access_key)
     } else {
-        (script_base_url, script_api_key)
+        (script_base_url, script_api_key, access_key_id, secret_access_key)
     }
 }
 
@@ -392,13 +403,13 @@ pub async fn query_usage_with_templates(
             "GitHub Copilot usage query is not available in web mode",
         )),
         "token_plan" => {
-            let (base_url, api_key) =
+            let (base_url, api_key, access_key_id, secret_access_key) =
                 resolve_coding_plan_credentials(&app_type, provider, usage_script);
             let quota = crate::services::coding_plan::get_coding_plan_quota(
                 &base_url,
                 &api_key,
-                None,
-                None,
+                access_key_id.as_deref(),
+                secret_access_key.as_deref(),
             )
             .await
             .map_err(AppError::Config)?;
