@@ -18,6 +18,7 @@ mod gemini_mcp;
 mod headless;
 pub mod hermes_config;
 mod init_status;
+pub mod kimi_config;
 mod lightweight;
 #[cfg(target_os = "linux")]
 mod linux_fix;
@@ -715,6 +716,13 @@ pub fn run() {
                 Ok(_) => log::debug!("○ No new Hermes providers to import"),
                 Err(e) => log::warn!("✗ Failed to import Hermes providers: {e}"),
             }
+            match crate::services::provider::import_kimi_providers_from_live(&app_state) {
+                Ok(count) if count > 0 => {
+                    log::info!("✓ Imported {count} Kimi provider(s) from live config");
+                }
+                Ok(_) => log::debug!("○ No new Kimi providers to import"),
+                Err(e) => log::warn!("✗ Failed to import Kimi providers: {e}"),
+            }
 
             // 2. OMO 配置导入（当数据库中无 OMO provider 时，从本地文件导入）
             {
@@ -810,6 +818,14 @@ pub fn run() {
                     Ok(_) => log::debug!("○ No Hermes MCP servers found to import"),
                     Err(e) => log::warn!("✗ Failed to import Hermes MCP: {e}"),
                 }
+
+                match crate::services::mcp::McpService::import_from_kimi(&app_state) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} MCP server(s) from Kimi");
+                    }
+                    Ok(_) => log::debug!("○ No Kimi MCP servers found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Kimi MCP: {e}"),
+                }
             }
 
             // 4. 导入提示词文件（表空时触发）
@@ -823,6 +839,7 @@ pub fn run() {
                     crate::app_config::AppType::OpenCode,
                     crate::app_config::AppType::OpenClaw,
                     crate::app_config::AppType::Hermes,
+                    crate::app_config::AppType::Kimi,
                 ] {
                     match crate::services::prompt::PromptService::import_from_file_on_first_launch(
                         &app_state,
@@ -1465,6 +1482,8 @@ pub fn run() {
             commands::get_hermes_model_config,
             commands::open_hermes_web_ui,
             commands::launch_hermes_dashboard,
+            commands::import_kimi_providers_from_live,
+            commands::get_kimi_live_provider_ids,
             commands::get_hermes_memory,
             commands::set_hermes_memory,
             commands::get_hermes_memory_limits,

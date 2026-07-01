@@ -884,7 +884,8 @@
     "gemini": "Gemini",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "kimi": "Kimi"
   },
   "sessionManager": {
     "title": "セッション管理",
@@ -1026,12 +1027,16 @@
       "volcengine_agentplan": "火山方舟 Coding Plan は CC Switch ユーザーに専属特典を提供しています：このリンクから方舟 Coding Plan を購読すると、新規のお客様は最初の 2 か月が 75% オフ、さらに専用招待コード 6J6FV5N2 で 5% オフが加算され、月額 9.4 元から！",
       "byteplus": "このリンクから登録すると、各モデルごとに50万トークンの無料推論クォータがもらえます。",
       "ccsub": "CCSub は安定・低価格の AI API リレーサービスです。Claude Code の公式サブスクリプションの代替として、1つのキーで全モデルを公式比約1/3のコストで利用できます。",
+      "subrouter": "SubRouter は、1つのキーで複数のモデルとプロバイダーにアクセスできる AI 中継アグリゲーターです。",
+      "qiniu": "Qiniu Cloud（七牛云）はマルチプロトコル対応の AI 中継プラットフォームです。1つのキーでネイティブの Claude・GPT・Gemini モデルを利用でき、Anthropic／OpenAI／Gemini の各 API に対応します。",
+      "fenno": "Fenno.ai は安定・高効率な API 中継サービスで、幅広い主要モデルを利用できます。CC Switch 利用者限定特典：このリンクから 9.9 元（150 ドル相当）の Coding Plan を購入できます！",
       "unity2": "Unity2.ai は CC Switch ユーザーに専属特典を提供しています：このリンクから登録すると $2 分のクレジット、公式グループ参加でさらに $10、最大 $12 の無料クレジットがもらえます！"
     },
     "presets": {
       "ucloud": "Compshare",
       "ucloudCoding": "Compshare Coding Plan",
       "shengsuanyun": "Shengsuanyun",
+      "qiniu": "Qiniu",
       "openrouter": "OpenRouter",
       "deepseek": "DeepSeek",
       "together": "Together AI"
@@ -1645,7 +1650,8 @@
         "gemini": "Gemini",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "kimi": "Kimi"
       }
     },
     "userLevelPath": "ユーザーレベルの MCP パス",

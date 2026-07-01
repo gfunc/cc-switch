@@ -347,7 +347,11 @@ fn settings_contain_common_config(app_type: &AppType, settings: &Value, snippet:
             }
             _ => false,
         },
-        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::ClaudeDesktop => false,
+        AppType::OpenCode
+        | AppType::OpenClaw
+        | AppType::Hermes
+        | AppType::Kimi
+        | AppType::ClaudeDesktop => false,
     }
 }
 
@@ -417,9 +421,11 @@ pub(crate) fn remove_common_config_from_settings(
             }
             Ok(result)
         }
-        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::ClaudeDesktop => {
-            Ok(settings.clone())
-        }
+        AppType::OpenCode
+        | AppType::OpenClaw
+        | AppType::Hermes
+        | AppType::Kimi
+        | AppType::ClaudeDesktop => Ok(settings.clone()),
     }
 }
 
@@ -474,9 +480,11 @@ fn apply_common_config_to_settings(
             }
             Ok(result)
         }
-        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::ClaudeDesktop => {
-            Ok(settings.clone())
-        }
+        AppType::OpenCode
+        | AppType::OpenClaw
+        | AppType::Hermes
+        | AppType::Kimi
+        | AppType::ClaudeDesktop => Ok(settings.clone()),
     }
 }
 
@@ -760,11 +768,19 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
                 .ok_or_else(|| AppError::Config("Codex 供应商配置缺少 'auth' 字段".to_string()))?;
             let config_str = obj.get("config").and_then(|v| v.as_str());
 
+            // Native (direct) Responses providers must suppress Codex's freeform
+            // apply_patch custom tool via the generated catalog; chat/proxy
+            // providers keep the default tool set. Keyed on provider.meta.apiFormat.
+            let profile = crate::codex_config::CodexCatalogToolProfile::from_api_format(
+                provider.meta.as_ref().and_then(|m| m.api_format.as_deref()),
+            );
+
             crate::codex_config::write_codex_provider_live_with_catalog(
                 &provider.settings_config,
                 provider.category.as_deref(),
                 auth,
                 config_str,
+                profile,
             )?;
         }
         AppType::Gemini => {
@@ -874,6 +890,10 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
         AppType::Hermes => {
             crate::hermes_config::set_provider(&provider.id, provider.settings_config.clone())?;
             log::debug!("Hermes provider '{}' written to live config", provider.id);
+        }
+        AppType::Kimi => {
+            crate::kimi_config::set_provider(provider)?;
+            log::info!("Kimi provider '{}' written to live config", provider.id);
         }
     }
     Ok(())
@@ -1124,6 +1144,11 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
             let config = crate::hermes_config::yaml_to_json(&yaml_config)?;
             Ok(config)
         }
+        AppType::Kimi => Err(AppError::localized(
+            "kimi.config.read_unsupported",
+            "Kimi 配置暂不支持作为通用 live 配置读取",
+            "Kimi configuration is not yet supported as a generic live config",
+        )),
     }
 }
 
@@ -1218,7 +1243,7 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
             })
         }
         // OpenCode, OpenClaw and Hermes use additive mode and are handled by early return above
-        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => {
+        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::Kimi => {
             unreachable!("additive mode apps are handled by early return")
         }
     };
@@ -1572,6 +1597,86 @@ pub fn remove_hermes_provider_from_live(provider_id: &str) -> Result<(), AppErro
 
     hermes_config::remove_provider(provider_id)?;
     log::info!("Hermes provider '{provider_id}' removed from live config");
+
+    Ok(())
+}
+
+/// Import all providers from Kimi live config to database
+///
+/// This imports existing providers from ~/.kimi-code/config.toml
+/// into the CC Switch database. Each provider found will be added to the
+/// database with is_current set to false.
+pub fn import_kimi_providers_from_live(state: &AppState) -> Result<usize, AppError> {
+    use crate::kimi_config;
+
+    let providers = kimi_config::get_providers()?;
+    if providers.is_empty() {
+        return Ok(0);
+    }
+
+    let mut imported = 0;
+    let existing_ids = state.db.get_provider_ids("kimi")?;
+
+    for (name, config) in providers {
+        // Validate: skip entries with empty name
+        if name.trim().is_empty() {
+            log::warn!("Skipping Kimi provider with empty name");
+            continue;
+        }
+
+        // Skip if already exists in database
+        if existing_ids.contains(&name) {
+            log::debug!("Kimi provider '{name}' already exists in database, skipping");
+            continue;
+        }
+
+        // Skip providers without models — Kimi requires at least one model
+        // to set default_model, so importing a model-less provider is useless.
+        let has_models = config
+            .get("models")
+            .and_then(|v| v.as_array())
+            .map(|arr| !arr.is_empty())
+            .unwrap_or(false);
+        if !has_models {
+            log::warn!("Skipping Kimi provider '{name}' because it has no models");
+            continue;
+        }
+
+        // Create provider
+        let mut provider = Provider::with_id(name.clone(), name.clone(), config, None);
+        provider.meta = Some(crate::provider::ProviderMeta {
+            live_config_managed: Some(true),
+            ..Default::default()
+        });
+
+        // Save to database
+        if let Err(e) = state.db.save_provider("kimi", &provider) {
+            log::warn!("Failed to import Kimi provider '{name}': {e}");
+            continue;
+        }
+
+        imported += 1;
+        log::info!("Imported Kimi provider '{name}' from live config");
+    }
+
+    Ok(imported)
+}
+
+/// Remove a Kimi provider from live config
+///
+/// This removes a specific provider from ~/.kimi-code/config.toml
+/// without affecting other providers in the file.
+pub fn remove_kimi_provider_from_live(provider_id: &str) -> Result<(), AppError> {
+    use crate::kimi_config;
+
+    // Check if Kimi config directory exists
+    if !kimi_config::get_kimi_dir().exists() {
+        log::debug!("Kimi config directory doesn't exist, skipping removal of '{provider_id}'");
+        return Ok(());
+    }
+
+    kimi_config::remove_provider(provider_id)?;
+    log::info!("Kimi provider '{provider_id}' removed from live config");
 
     Ok(())
 }

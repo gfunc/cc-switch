@@ -254,6 +254,15 @@ export interface CodexCatalogModel {
   model: string;
   displayName?: string;
   contextWindow?: string | number;
+  // Native Responses (direct) profile overrides for the generated
+  // model-catalogs.json. Ignored by the chat/proxy profile.
+  // e.g. MiniMax: supportsParallelToolCalls=true, inputModalities=["text","image"].
+  supportsParallelToolCalls?: boolean;
+  inputModalities?: string[];
+  // Vendor's OFFICIAL base_instructions (model identity / system preamble).
+  // Codex requires this field in every catalog entry; when omitted the backend
+  // falls back to a neutral default. e.g. MiMo "developed by Xiaomi".
+  baseInstructions?: string;
 }
 
 // Claude 认证字段类型
@@ -268,6 +277,7 @@ export interface VisibleApps {
   opencode: boolean;
   openclaw: boolean;
   hermes: boolean;
+  kimi: boolean;
 }
 
 // WebDAV 同步状态
@@ -384,6 +394,8 @@ export interface Settings {
   openclawConfigDir?: string;
   // 覆盖 Hermes 配置目录（可选）
   hermesConfigDir?: string;
+  // 覆盖 Kimi 配置目录（可选）
+  kimiConfigDir?: string;
 
   // ===== 当前供应商 ID（设备级）=====
   // 当前 Claude 供应商 ID（优先于数据库 is_current）
@@ -394,6 +406,8 @@ export interface Settings {
   currentProviderCodex?: string;
   // 当前 Gemini 供应商 ID（优先于数据库 is_current）
   currentProviderGemini?: string;
+  // 当前 Kimi 供应商 ID（优先于数据库 is_current）
+  currentProviderKimi?: string;
 
   // ===== Skill 同步设置 =====
   // Skill 同步方式：auto（默认，优先 symlink）、symlink、copy
@@ -475,6 +489,7 @@ export interface McpApps {
   opencode: boolean;
   openclaw: boolean;
   hermes: boolean;
+  kimi: boolean;
 }
 
 // MCP 服务器条目（v3.7.0 统一结构）

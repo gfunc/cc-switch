@@ -199,6 +199,10 @@ impl Provider {
                 );
                 (base_url, api_key)
             }
+            AppType::Kimi => (
+                str_at(self.settings_config.get("base_url")),
+                str_at(self.settings_config.get("api_key")),
+            ),
         };
 
         // Normalize like the JS-script path (extract_base_url_from_provider) so a
@@ -1444,6 +1448,21 @@ mod tests {
             (
                 "https://api.deepseek.com".to_string(),
                 "sk-hermes".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn resolve_credentials_kimi_snake_case() {
+        let p = provider_with(json!({
+            "base_url": "https://api.deepseek.com/",
+            "api_key": "sk-kimi",
+        }));
+        assert_eq!(
+            p.resolve_usage_credentials(&AppType::Kimi),
+            (
+                "https://api.deepseek.com".to_string(),
+                "sk-kimi".to_string()
             )
         );
     }
