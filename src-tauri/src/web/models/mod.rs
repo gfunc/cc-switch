@@ -239,6 +239,8 @@ pub struct VisibleApps {
     pub openclaw: bool,
     #[serde(default = "default_true")]
     pub hermes: bool,
+    #[serde(default = "default_true")]
+    pub kimi: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
