@@ -20,6 +20,8 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
         .route("/", get(list_settings))
         .route("/", put(update_settings))
         .route("/config-dir", get(get_config_dir))
+        .route("/app-config-dir-override", get(get_app_config_dir_override))
+        .route("/app-config-dir-override", post(set_app_config_dir_override))
         .route("/app-config-path", get(get_app_config_path))
         .route("/common-config/:app_type", get(get_common_config_snippet))
         .route("/common-config/:app_type", put(set_common_config_snippet))
@@ -254,6 +256,24 @@ async fn get_config_dir(
     };
 
     Json(ApiResponse::success(dir.to_string_lossy().to_string()))
+}
+
+#[derive(Deserialize)]
+struct SetAppConfigDirOverrideRequest {
+    path: Option<String>,
+}
+
+async fn get_app_config_dir_override() -> Json<ApiResponse<serde_json::Value>> {
+    // Web/headless mode has no Tauri Store, so no override is persisted.
+    Json(ApiResponse::success(json!({ "path": null })))
+}
+
+async fn set_app_config_dir_override(
+    Json(req): Json<SetAppConfigDirOverrideRequest>,
+) -> Json<ApiResponse<bool>> {
+    // Web/headless mode does not support overriding the app config dir at runtime.
+    let _ = req.path;
+    Json(ApiResponse::success(true))
 }
 
 async fn get_app_config_path(
