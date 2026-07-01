@@ -405,6 +405,14 @@ pub async fn query_usage_with_templates(
         "token_plan" => {
             let (base_url, api_key, access_key_id, secret_access_key) =
                 resolve_coding_plan_credentials(&app_type, provider, usage_script);
+            log::info!(
+                "[usage] token_plan query for {}: base_url={}, api_key_present={}, ak_present={}, sk_present={}",
+                provider_id,
+                base_url,
+                !api_key.is_empty(),
+                access_key_id.as_deref().map(|s| !s.is_empty()).unwrap_or(false),
+                secret_access_key.as_deref().map(|s| !s.is_empty()).unwrap_or(false),
+            );
             let quota = crate::services::coding_plan::get_coding_plan_quota(
                 &base_url,
                 &api_key,
@@ -413,6 +421,12 @@ pub async fn query_usage_with_templates(
             )
             .await
             .map_err(AppError::Config)?;
+            log::info!(
+                "[usage] token_plan result for {}: success={}, error={:?}",
+                provider_id,
+                quota.success,
+                quota.error
+            );
             Ok(coding_plan_quota_to_usage_result(quota))
         }
         "balance" => {

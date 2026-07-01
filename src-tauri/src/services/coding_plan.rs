@@ -1160,12 +1160,29 @@ pub async fn get_coding_plan_quota(
     if let CodingPlanProvider::Volcengine = provider {
         let ak = access_key_id.unwrap_or("").trim();
         let sk = secret_access_key.unwrap_or("").trim();
+        log::info!(
+            "[coding_plan] Volcengine branch: base_url={}, ak_len={}, sk_len={}",
+            base_url,
+            ak.len(),
+            sk.len()
+        );
         if ak.is_empty() || sk.is_empty() {
+            log::warn!(
+                "[coding_plan] Volcengine missing AK/SK: ak_empty={}, sk_empty={}",
+                ak.is_empty(),
+                sk.is_empty()
+            );
             return Ok(coding_plan_not_found(
                 "Volcengine usage query needs the account AccessKey ID + Secret (not the inference API key)",
             ));
         }
-        return Ok(query_volcengine(base_url, ak, sk).await);
+        let result = query_volcengine(base_url, ak, sk).await;
+        log::info!(
+            "[coding_plan] Volcengine result: success={}, error={:?}",
+            result.success,
+            result.error
+        );
+        return Ok(result);
     }
 
     // 其余供应商：数据面 Bearer api_key。

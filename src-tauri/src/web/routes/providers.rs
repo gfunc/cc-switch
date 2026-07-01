@@ -190,6 +190,11 @@ async fn query_provider_usage(
     State((state, _ws_state)): State<(Arc<AppState>, Arc<WsState>)>,
     Json(req): Json<QueryUsageRequest>,
 ) -> Json<ApiResponse<crate::provider::UsageResult>> {
+    log::info!(
+        "[web] query_provider_usage: provider_id={}, app={}",
+        req.provider_id,
+        req.app
+    );
     let desktop = match state.desktop() {
         Ok(d) => d,
         Err(e) => return Json(ApiResponse::error(e)),
@@ -206,8 +211,18 @@ async fn query_provider_usage(
     )
     .await
     {
-        Ok(result) => Json(ApiResponse::success(result)),
-        Err(e) => Json(ApiResponse::error(e.to_string())),
+        Ok(result) => {
+            log::info!(
+                "[web] query_provider_usage result: success={}, error={:?}",
+                result.success,
+                result.error
+            );
+            Json(ApiResponse::success(result))
+        }
+        Err(e) => {
+            log::warn!("[web] query_provider_usage error: {}", e);
+            Json(ApiResponse::error(e.to_string()))
+        }
     }
 }
 

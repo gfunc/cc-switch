@@ -82,6 +82,12 @@ pub struct UsageScript {
     pub user_id: Option<String>,
     #[serde(rename = "autoQueryInterval")]
     pub auto_query_interval: Option<i64>,
+    #[serde(rename = "accessKeyId")]
+    pub access_key_id: Option<String>,
+    #[serde(rename = "secretAccessKey")]
+    pub secret_access_key: Option<String>,
+    #[serde(rename = "codingPlanProvider")]
+    pub coding_plan_provider: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
