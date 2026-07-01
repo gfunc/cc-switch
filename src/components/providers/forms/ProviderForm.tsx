@@ -176,10 +176,21 @@ export const normalizeCodexCatalogModelsForSave = (
       ? Number.parseInt(rawContextWindow, 10)
       : undefined;
 
+    const baseInstructions = item.baseInstructions?.trim();
+    const inputModalities =
+      Array.isArray(item.inputModalities) && item.inputModalities.length > 0
+        ? item.inputModalities
+        : undefined;
+
     normalized.push({
       model,
       ...(displayName ? { displayName } : {}),
       ...(contextWindow && contextWindow > 0 ? { contextWindow } : {}),
+      ...(item.supportsParallelToolCalls !== undefined
+        ? { supportsParallelToolCalls: item.supportsParallelToolCalls }
+        : {}),
+      ...(inputModalities ? { inputModalities } : {}),
+      ...(baseInstructions ? { baseInstructions } : {}),
     });
   }
 
