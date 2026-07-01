@@ -32,6 +32,7 @@ describe("textNormalization", () => {
       expect(normalizeTomlText("“key\" = \"value\"")).toBe(
         '"key" = "value"',
       );
+      expect(normalizeTomlText("‘value’")).toBe("'value'");
     });
   });
 });

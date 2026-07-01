@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { providersApi, universalProvidersApi } from "@/lib/api/web/providers";
+import type { Provider, UniversalProvider } from "@/types";
 
 const jsonResponse = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -35,12 +36,12 @@ describe("web providers API", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse({ success: true, data: true }));
 
-    const provider = {
+    const provider: Provider = {
       id: "p1",
       name: "Test",
       settingsConfig: {},
     };
-    await providersApi.add(provider as any, "claude");
+    await providersApi.add(provider, "claude");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/providers",
@@ -56,8 +57,12 @@ describe("web providers API", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse({ success: true, data: true }));
 
-    const provider = { id: "new-id", name: "Test", settingsConfig: {} };
-    await providersApi.update(provider as any, "claude", "old-id");
+    const provider: Provider = {
+      id: "new-id",
+      name: "Test",
+      settingsConfig: {},
+    };
+    await providersApi.update(provider, "claude", "old-id");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/providers/old-id",
@@ -113,7 +118,15 @@ describe("web providers API", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse({ success: true, data: true }));
 
-    const provider = { id: "u1", name: "Universal" } as any;
+    const provider: UniversalProvider = {
+      id: "u1",
+      name: "Universal",
+      providerType: "custom",
+      apps: { claude: true, codex: false, gemini: false },
+      baseUrl: "http://localhost:3000",
+      apiKey: "test-key",
+      models: {},
+    };
     await universalProvidersApi.upsert(provider);
 
     expect(fetchMock).toHaveBeenCalledWith(

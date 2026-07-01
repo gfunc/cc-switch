@@ -19,7 +19,9 @@ describe("tomlUtils", () => {
 
     it("returns an error for top-level array input", () => {
       // TOML does not allow top-level arrays, so smol-toml reports a parse error
-      expect(validateToml("[1, 2, 3]")).not.toBe("");
+      const result = validateToml("[1, 2, 3]");
+      expect(result).not.toBe("");
+      expect(result).toContain("Invalid TOML");
     });
 
     it("returns an error message for malformed TOML", () => {
@@ -46,7 +48,7 @@ describe("tomlUtils", () => {
         type: "http",
         url: "http://localhost:3000",
       };
-      const toml = mcpServerToToml(server as any);
+      const toml = mcpServerToToml(server);
       expect(toml).not.toContain("args");
       expect(toml).not.toContain("env");
     });
@@ -56,7 +58,7 @@ describe("tomlUtils", () => {
         type: "stdio",
         command: "npx",
         timeout_ms: 30000,
-      } as McpServerSpec;
+      };
       const toml = mcpServerToToml(server);
       expect(toml).toContain("timeout_ms");
       expect(toml).toContain("30000");
