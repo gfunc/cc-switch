@@ -150,5 +150,9 @@ test.describe("provider management (web)", () => {
     // The switched-to provider should still be present and in use.
     await expect(switchHeading).toBeVisible();
     await expect(switchCard.getByRole("button", { name: /In Use|已在用/i })).toBeVisible();
+
+    // Clean up both seeded providers so later E2E specs start from an empty state.
+    await cleanupProvider(request, token, "e2e-switch-provider");
+    await cleanupProvider(request, token, "e2e-delete-provider");
   });
 });
