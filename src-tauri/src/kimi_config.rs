@@ -284,6 +284,75 @@ pub fn set_provider(provider: &Provider) -> Result<KimiWriteOutcome, AppError> {
     })
 }
 
+/// Remove a provider and its model entries from Kimi config.toml.
+pub fn remove_provider(provider_name: &str) -> Result<KimiWriteOutcome, AppError> {
+    let _guard = kimi_write_lock().lock()?;
+
+    let path = get_kimi_config_path();
+    let raw = if path.exists() {
+        fs::read_to_string(&path).map_err(|e| AppError::io(&path, e))?
+    } else {
+        String::new()
+    };
+
+    if raw.trim().is_empty() {
+        return Ok(KimiWriteOutcome::default());
+    }
+
+    let mut doc = read_kimi_config()?;
+    let mut changed = false;
+
+    // Remove [providers."<provider_name>"]
+    if let Some(providers) = doc.get_mut("providers").and_then(|v| v.as_table_like_mut()) {
+        let key = format!("\"{}\"", provider_name)
+            .parse::<toml_edit::Key>()
+            .map_err(|e| AppError::Config(format!("Invalid Kimi provider key: {e}")))?;
+        if providers.remove(&key).is_some() {
+            changed = true;
+        }
+    }
+
+    // Remove [models."<provider_name>/<model_id>"]
+    if let Some(models) = doc.get_mut("models").and_then(|v| v.as_table_like_mut()) {
+        let prefix = format!("{}/", provider_name);
+        let to_remove: Vec<String> = models
+            .iter()
+            .filter_map(|(alias, _)| {
+                if alias.starts_with(&prefix) {
+                    Some(alias.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for alias in to_remove {
+            models.remove(&alias);
+            changed = true;
+        }
+    }
+
+    // Clear default_model if it points to this provider
+    if let Some(default_model) = doc.get("default_model").and_then(|v| v.as_str()) {
+        if default_model.starts_with(&format!("{}/", provider_name)) {
+            doc.remove("default_model");
+            changed = true;
+        }
+    }
+
+    if !changed {
+        return Ok(KimiWriteOutcome::default());
+    }
+
+    let backup_path = Some(create_kimi_backup(&raw)?);
+    atomic_write(&path, doc.to_string().as_bytes())?;
+
+    log::info!("Kimi provider '{}' removed from live config", provider_name);
+
+    Ok(KimiWriteOutcome {
+        backup_path: backup_path.map(|p| p.display().to_string()),
+    })
+}
+
 /// Read all providers from Kimi config.toml as a JSON map keyed by provider id.
 /// Used for first-launch import and additive key collision checks.
 pub fn get_providers() -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
@@ -293,6 +362,52 @@ pub fn get_providers() -> Result<serde_json::Map<String, serde_json::Value>, App
     let Some(providers) = doc.get("providers").and_then(|v| v.as_table_like()) else {
         return Ok(map);
     };
+
+    // Collect models grouped by provider.
+    let mut models_by_provider: std::collections::HashMap<String, Vec<serde_json::Value>> =
+        std::collections::HashMap::new();
+    if let Some(models) = doc.get("models").and_then(|v| v.as_table_like()) {
+        for (_alias, item) in models.iter() {
+            let Some(table) = item.as_table_like() else {
+                continue;
+            };
+            let provider = table
+                .get("provider")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let model_id = table
+                .get("model")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if provider.is_empty() || model_id.is_empty() {
+                continue;
+            }
+            let mut model_obj = serde_json::json!({
+                "id": model_id,
+            });
+            if let Some(name) = table.get("display_name").and_then(|v| v.as_str()) {
+                model_obj["name"] = serde_json::json!(name);
+            }
+            if let Some(size) = table.get("max_context_size").and_then(|v| v.as_integer()) {
+                model_obj["max_context_size"] = serde_json::json!(size as usize);
+            }
+            if let Some(caps) = table.get("capabilities").and_then(|v| v.as_array()) {
+                let capabilities: Vec<String> = caps
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !capabilities.is_empty() {
+                    model_obj["capabilities"] = serde_json::json!(capabilities);
+                }
+            }
+            models_by_provider
+                .entry(provider)
+                .or_default()
+                .push(model_obj);
+        }
+    }
 
     for (name, item) in providers.iter() {
         let Some(table) = item.as_table_like() else {
@@ -315,6 +430,11 @@ pub fn get_providers() -> Result<serde_json::Map<String, serde_json::Value>, App
             .unwrap_or("kimi")
             .to_string();
 
+        let name_owned = name.to_string();
+        let models = models_by_provider
+            .remove(&name_owned)
+            .unwrap_or_default();
+
         map.insert(
             name.to_string(),
             serde_json::json!({
@@ -322,6 +442,7 @@ pub fn get_providers() -> Result<serde_json::Map<String, serde_json::Value>, App
                 "type": provider_type,
                 "base_url": base_url,
                 "api_key": api_key,
+                "models": models,
             }),
         );
     }

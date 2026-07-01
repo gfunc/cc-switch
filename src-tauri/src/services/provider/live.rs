@@ -1601,6 +1601,86 @@ pub fn remove_hermes_provider_from_live(provider_id: &str) -> Result<(), AppErro
     Ok(())
 }
 
+/// Import all providers from Kimi live config to database
+///
+/// This imports existing providers from ~/.kimi-code/config.toml
+/// into the CC Switch database. Each provider found will be added to the
+/// database with is_current set to false.
+pub fn import_kimi_providers_from_live(state: &AppState) -> Result<usize, AppError> {
+    use crate::kimi_config;
+
+    let providers = kimi_config::get_providers()?;
+    if providers.is_empty() {
+        return Ok(0);
+    }
+
+    let mut imported = 0;
+    let existing_ids = state.db.get_provider_ids("kimi")?;
+
+    for (name, config) in providers {
+        // Validate: skip entries with empty name
+        if name.trim().is_empty() {
+            log::warn!("Skipping Kimi provider with empty name");
+            continue;
+        }
+
+        // Skip if already exists in database
+        if existing_ids.contains(&name) {
+            log::debug!("Kimi provider '{name}' already exists in database, skipping");
+            continue;
+        }
+
+        // Skip providers without models — Kimi requires at least one model
+        // to set default_model, so importing a model-less provider is useless.
+        let has_models = config
+            .get("models")
+            .and_then(|v| v.as_array())
+            .map(|arr| !arr.is_empty())
+            .unwrap_or(false);
+        if !has_models {
+            log::warn!("Skipping Kimi provider '{name}' because it has no models");
+            continue;
+        }
+
+        // Create provider
+        let mut provider = Provider::with_id(name.clone(), name.clone(), config, None);
+        provider.meta = Some(crate::provider::ProviderMeta {
+            live_config_managed: Some(true),
+            ..Default::default()
+        });
+
+        // Save to database
+        if let Err(e) = state.db.save_provider("kimi", &provider) {
+            log::warn!("Failed to import Kimi provider '{name}': {e}");
+            continue;
+        }
+
+        imported += 1;
+        log::info!("Imported Kimi provider '{name}' from live config");
+    }
+
+    Ok(imported)
+}
+
+/// Remove a Kimi provider from live config
+///
+/// This removes a specific provider from ~/.kimi-code/config.toml
+/// without affecting other providers in the file.
+pub fn remove_kimi_provider_from_live(provider_id: &str) -> Result<(), AppError> {
+    use crate::kimi_config;
+
+    // Check if Kimi config directory exists
+    if !kimi_config::get_kimi_dir().exists() {
+        log::debug!("Kimi config directory doesn't exist, skipping removal of '{provider_id}'");
+        return Ok(());
+    }
+
+    kimi_config::remove_provider(provider_id)?;
+    log::info!("Kimi provider '{provider_id}' removed from live config");
+
+    Ok(())
+}
+
 /// Remove an OpenClaw provider from live config
 ///
 /// This removes a specific provider from ~/.openclaw/openclaw.json
