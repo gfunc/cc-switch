@@ -1122,7 +1122,7 @@ fn sync_updated_provider_runtime_state(
                 }
             }
         }
-        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => {
+        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::Kimi => {
             // Additive-mode apps are managed in their own live files and don't have exclusive "current" live overwrite.
         }
         AppType::ClaudeDesktop => {
