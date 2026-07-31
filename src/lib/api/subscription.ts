@@ -24,11 +24,23 @@ export const subscriptionApi = {
     }
     return invoke("get_codex_oauth_quota", { accountId });
   },
+  getXaiOauthQuota: (accountId: string | null): Promise<SubscriptionQuota> => {
+    if (!isTauri()) {
+      return Promise.reject(
+        new Error("xAI OAuth quota is not available in web mode"),
+      );
+    }
+    return invoke("get_xai_oauth_quota", { accountId });
+  },
   getCodingPlanQuota: (
     baseUrl: string,
     apiKey: string,
     accessKeyId?: string,
     secretAccessKey?: string,
+    // 智谱团队版（zhipu_team）靠显式标识路由（base_url 与个人版相同无法区分）。
+    codingPlanProvider?: string,
+    teamOrganizationId?: string,
+    teamProjectId?: string,
   ): Promise<SubscriptionQuota> => {
     if (!isTauri()) {
       return post<SubscriptionQuota>("/providers/usage/coding-plan", {
@@ -36,6 +48,7 @@ export const subscriptionApi = {
         apiKey,
         accessKeyId,
         secretAccessKey,
+        codingPlanProvider,
       });
     }
     return invoke("get_coding_plan_quota", {
@@ -43,6 +56,9 @@ export const subscriptionApi = {
       apiKey,
       accessKeyId,
       secretAccessKey,
+      codingPlanProvider,
+      teamOrganizationId,
+      teamProjectId,
     });
   },
   getBalance: (

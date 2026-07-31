@@ -34,7 +34,6 @@ if (
   });
 }
 
-
 // Mock window.matchMedia for theme provider tests
 if (typeof globalThis.matchMedia === "undefined") {
   Object.defineProperty(globalThis, "matchMedia", {
@@ -52,10 +51,21 @@ if (typeof globalThis.matchMedia === "undefined") {
   });
 }
 
-
 // Mock Tauri environment for tests
 // This ensures isTauri() returns true and the Tauri API layer is used
 if (typeof globalThis.window !== "undefined") {
   // @ts-ignore - Tauri global
   globalThis.window.__TAURI__ = globalThis.window.__TAURI__ || {};
+}
+
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+}
+
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
 }

@@ -177,7 +177,9 @@
         "oauthHint": "Google 官方使用 OAuth 個人驗證，無需填寫 API Key。首次使用時會自動開啟瀏覽器進行登入。",
         "apiKeyPlaceholder": "請輸入 Gemini API Key"
       }
-    }
+    },
+    "addFooterHint": "💡 選擇預設後，請在下方填寫 API Key 等欄位",
+    "duplicateLiveIdsLoadFailed": "讀取設定中的供應商識別碼失敗，請先修復設定後再試"
   },
   "claudeCode": {
     "needsRouting": "需要路由",
@@ -185,7 +187,9 @@
   },
   "codex": {
     "needsRouting": "需要路由",
-    "noRoutingSupport": "不支援路由"
+    "noRoutingSupport": "不支援路由",
+    "officialRouting": "官方帳號路由",
+    "nativeLogin": "Codex 登入"
   },
   "claudeDesktop": {
     "officialNotice": "Claude Desktop 官方供應商使用應用程式內建的 1P 登入，無需設定 API Key 和 API 位址。",
@@ -224,7 +228,8 @@
       "tooltip": {
         "active": "Claude Desktop 本地路由已開啟 - {{address}}:{{port}}",
         "inactive": "開啟 Claude Desktop 本地路由，用於需要模型對應或格式轉換的供應商。目前設定位址：{{address}}:{{port}}"
-      }
+      },
+      "stopBlockedByTakeover": "其他應用正在使用代理接管。請先在設定中關閉對應應用接管，再停止本機路由。"
     }
   },
   "notifications": {
@@ -269,7 +274,12 @@
     "backfillWarning": "切換成功，但舊供應商設定回填失敗，您手動修改的設定可能未儲存",
     "windowControlFailed": "視窗控制失敗：{{error}}",
     "officialBlockedByProxy": "本地路由模式下不能切換至官方供應商，使用路由存取官方 API 可能導致帳號被封鎖",
-    "proxyOfficialWarning": "目前供應商 {{name}} 是官方供應商，建議切換至第三方供應商後再使用本地路由"
+    "proxyOfficialWarning": "目前供應商 {{name}} 是官方供應商，建議切換至第三方供應商後再使用本地路由",
+    "grokBuildRestartRequired": "切換成功，請重新啟動 Grok Build 以套用",
+    "proxyReasonAnthropicMessages": "使用 Anthropic Messages API 格式",
+    "proxyReasonManagedOAuth": "使用託管 OAuth 登入（權杖由本機路由注入）",
+    "proxyReasonRoutingRequired": "需要本機路由處理請求",
+    "proxyReasonClaudeDesktop": "使用 Claude Desktop 本機路由模式"
   },
   "confirm": {
     "deleteProvider": "刪除供應商",
@@ -331,7 +341,8 @@
       "description": "在 Claude Code 中使用您的其他訂閱，請注意合規風險。",
       "beta": "Beta",
       "copilotDescription": "管理 GitHub Copilot 帳號",
-      "codexOauthDescription": "管理 ChatGPT 帳號"
+      "codexOauthDescription": "管理 ChatGPT 帳號",
+      "xaiOauthDescription": "管理 xAI / Grok 帳號"
     },
     "advanced": {
       "configDir": {
@@ -426,6 +437,10 @@
           "debug": "詳細資訊，包含 SSE 串流與請求/回應詳情",
           "trace": "全部日誌，最詳細"
         }
+      },
+      "connectivityCheck": {
+        "title": "連通檢測設定",
+        "description": "設定供應商位址探測的逾時、重試與緩慢閾值"
       }
     },
     "language": "介面語言",
@@ -701,7 +716,9 @@
       "claudeDesc": "Anthropic Claude Code CLI",
       "codexDesc": "OpenAI Codex CLI",
       "geminiDesc": "Google Gemini CLI",
-      "opencodeDesc": "OpenCode CLI"
+      "opencodeDesc": "OpenCode CLI",
+      "showProfileSwitcher": "顯示專案切換",
+      "showProfileSwitcherDescription": "在主頁面頂部顯示專案切換入口"
     },
     "skillStorage": {
       "title": "Skills 儲存位置",
@@ -844,7 +861,40 @@
       "defaultCostMultiplierRequired": "預設倍率不能為空",
       "defaultCostMultiplierInvalid": "預設倍率格式不正確"
     },
-    "saveFailedGeneric": "儲存失敗，請重試"
+    "saveFailedGeneric": "儲存失敗，請重試",
+    "grokConfigDir": "Grok Build 設定目錄",
+    "grokConfigDirDescription": "覆寫 Grok Build 設定目錄 (config.toml)。",
+    "browsePlaceholderGrok": "例如：/home/<您的帳號>/.grok",
+    "manualInstallCommands": "手動安裝指令",
+    "updateAllTools": "全部更新（{{count}}）",
+    "currentVersion": "目前版本",
+    "latestVersion": "最新版本",
+    "updateAvailableShort": "可更新",
+    "toolInstall": "安裝",
+    "toolUpdate": "更新",
+    "toolReady": "已就緒",
+    "toolActionDone": "{{count}} 個工具{{action}}完成",
+    "toolActionPartial": "{{succeeded}} 個{{action}}成功，{{failed}} 個失敗",
+    "toolActionFailed": "安裝/更新指令執行失敗",
+    "toolNotRunnable": "已安裝但無法執行（未偵測到版本）",
+    "toolActionVersionUnchangedTitle": "版本未變更",
+    "toolActionVersionUnchanged": "仍為 {{version}}（最新版本：{{latest}}）。上游更新程式可能回報成功，但實際上並未套用更新。",
+    "toolActionInstalledNotRunnable": "已安裝，但目前環境無法執行，請檢查",
+    "installedNotRunnable": "已安裝 · 無法執行",
+    "toolCheckEnv": "請檢查執行環境",
+    "toolDiagnose": "診斷安裝衝突",
+    "toolDiagnosing": "診斷中…",
+    "toolConflictTitle": "偵測到多處安裝",
+    "toolConflictHint": "命令列實際使用標示為「預設」的項目；更新可能已寫入其他位置。",
+    "toolConflictDefault": "預設",
+    "toolConflictNotRunnable": "無法執行",
+    "toolDiagnoseNoConflict": "未發現安裝衝突",
+    "toolDiagnoseFailed": "診斷失敗",
+    "toolUpgradeConfirmTitle": "確認更新位置",
+    "toolUpgradeConfirmHint": "偵測到多處安裝。本次更新不會更新所有安裝；請以下方各工具顯示的實際更新位置為準。",
+    "toolUpgradeWillRun": "將執行：",
+    "toolUpgradeConfirmBtn": "確認更新",
+    "toolUpgradeUnanchoredHint": "無法判定命令列實際使用的安裝位置；將執行預設更新指令（可能安裝至 PATH 中第一個 npm）。"
   },
   "apps": {
     "claude": "Claude",
@@ -856,7 +906,8 @@
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
     "hermes": "Hermes",
-    "kimi": "Kimi"
+    "kimi": "Kimi",
+    "grokbuild": "Grok Build"
   },
   "sessionManager": {
     "title": "工作階段管理",
@@ -928,7 +979,17 @@
     "messageCopied": "已複製訊息內容",
     "conversationHistory": "對話紀錄",
     "expandContent": "展開完整內容",
-    "collapseContent": "收起"
+    "collapseContent": "收起",
+    "providerFilterTooltip": "供應商篩選",
+    "viewModeTooltip": "檢視方式",
+    "viewModeFlat": "清單",
+    "viewModeGrouped": "分類",
+    "unknownDirectory": "未知目錄",
+    "toggleProviderGroup": "展開或摺疊 {{provider}} 供應商分組",
+    "toggleDirectoryGroup": "展開或摺疊 {{directory}} 目錄分組",
+    "collapseAllGroups": "全部收起",
+    "selectProviderGroupForBatch": "選擇 {{provider}} 供應商分組內工作階段",
+    "selectDirectoryGroupForBatch": "選擇 {{directory}} 目錄分組內工作階段"
   },
   "console": {
     "providerSwitchReceived": "收到供應商切換事件：",
@@ -1004,7 +1065,13 @@
       "fenno": "Fenno.ai 是穩定高效的 API 中轉服務商，可接入多種主流模型。CC Switch 使用者專屬福利：透過此連結訂閱 9.9 元 /150 刀額度的超值 Coding Plan！",
       "zetaapi": "ZetaAPI 主打模型不摻水、不降智，價格低至官方價 35 折。CC Switch 使用者專屬福利：透過此連結註冊，首次充值使用優惠碼 CC-SWITCH 即可享受九折優惠！",
       "teamorouter": "TeamoRouter 是企業級 Agentic LLM 閘道，價格最高可達 90% 折扣。為 CC Switch 的使用者提供了特別福利：新使用者透過此連結註冊，首次充值享 10% 折扣！",
-      "unity2": "Unity2.ai 為 CC Switch 使用者提供專屬福利：透過此連結註冊可領取 $2 餘額，加入官方群再送 $10，最高可領 $12 免費額度！"
+      "unity2": "Unity2.ai 為 CC Switch 使用者提供專屬福利：透過此連結註冊可領取 $2 餘額，加入官方群再送 $10，最高可領 $12 免費額度！",
+      "a6api": "A6API 是一家 Token 聚合站，內建即時價格排行自動篩選全網最低價，滑順穩定不卡頓，簡易操作省去比價繁瑣，註冊獲得體驗金！",
+      "sudocode": "SudoCode 讓 Claude Code 與 Claude Desktop 使用 Claude Opus 5，Codex 使用 GPT-5.6，一個 Key 統一管理。CC Switch 使用者註冊並加入 QQ 群 726213516，聯絡群主領取人民幣 ¥10 試用額度。",
+      "code0": "code0.ai 是面向開發者的 AI 程式設計服務平台，支援 Claude Code、Codex、Gemini。CC Switch 使用者專屬福利：透過官網聯繫客服即可領取測試額度！",
+      "nekocode": "NekoCode 為開發者提供穩定、高效、可靠的 Claude、Codex 等 AI 模型 API 中轉服務，價格透明、按量計費。CC Switch 使用者專享 9 折：透過上方連結註冊，儲值時輸入優惠碼 cc-switch 即享 9 折優惠！",
+      "opencode_go": "使用此連結訂閱 OpenCode Go，首月僅需 $5，並可獲得額外的 $5 額度！",
+      "etok": "官網加入 ETok 社群，訂閱方案。"
     },
     "presets": {
       "ucloud": "優雲智算",
@@ -1107,7 +1174,18 @@
     "fetchModelsAuthFailed": "API Key 無效或無權限",
     "fetchModelsNotSupported": "該供應商不支援取得模型清單",
     "fetchModelsEndpointNotFound": "未找到可用的模型清單端點，請檢查 Base URL 或確認供應商是否開放該 API",
-    "fetchModelsTimeout": "請求逾時，請檢查網路連線"
+    "fetchModelsTimeout": "請求逾時，請檢查網路連線",
+    "providerKeyStatusLoading": "正在載入供應商識別碼狀態，請稍後再試",
+    "localProxyRequestOverrides": "本地代理請求覆蓋",
+    "localProxyRequestOverridesHint": "僅在本地路由/代理接管後生效，套用於協定轉換後的上游請求。",
+    "localProxyRequestOverridesInvalid": "本地代理請求覆蓋格式錯誤：{{error}}",
+    "localProxyHeaderOverrides": "Header 覆蓋",
+    "localProxyHeaderOverridesInvalidDetail": "Header 覆蓋格式錯誤：{{error}}",
+    "localProxyBodyOverrides": "Body 覆蓋",
+    "localProxyBodyOverridesInvalidDetail": "Body 覆蓋格式錯誤：{{error}}",
+    "modelRoleSubagent": "Subagent",
+    "modelNoDisplayName": "不顯示於 /model 選單",
+    "requiredFields": "請填寫供應商名稱、API 位址、API Key 和模型"
   },
   "copilot": {
     "authSection": "GitHub Copilot 驗證",
@@ -1267,7 +1345,32 @@
     "reasoningEffortHint": "上游支援 low/high/max 等思考深度控制時啟用。啟用後會自動啟用思考模式，並把 Codex 的 reasoning.effort 轉成上游 Chat 參數。",
     "reasoningGroupTitle": "思考能力",
     "reasoningSectionHint": "預設供應商已自動設定；自訂供應商會按名稱/位址自動推斷。僅當自動識別不準時才需手動覆寫。",
-    "advancedSectionHint": "包含本地路由映射、模型映射、思考能力與自訂 User-Agent。供應商使用 Chat Completions 協定或非 GPT 模型時，需在此開啟本地路由映射。"
+    "advancedSectionHint": "包含本地路由映射、模型映射、思考能力與自訂 User-Agent。供應商使用 Chat Completions 協定或非 GPT 模型時，需在此開啟本地路由映射。",
+    "upstreamFormatLabel": "上游格式",
+    "upstreamFormatHint": "供應商原生為 Responses API 就選 Responses（直連，不轉換格式）；使用 Chat Completions 協定就選 Chat；供應商只提供原生 Anthropic Messages 協定就選 Anthropic Messages。Chat 與 Anthropic Messages 均需開啟路由接管才能轉換為 Responses。",
+    "upstreamFormatChat": "Chat Completions（需開啟路由）",
+    "upstreamFormatResponses": "Responses（原生）",
+    "upstreamFormatAnthropic": "Anthropic Messages（需開啟路由）",
+    "anthropicAuthFieldLabel": "認證欄位",
+    "anthropicAuthFieldAuthToken": "ANTHROPIC_AUTH_TOKEN（Authorization）",
+    "anthropicAuthFieldApiKey": "ANTHROPIC_API_KEY（x-api-key）",
+    "anthropicAuthFieldHint": "選擇閘道接收 API Key 的請求標頭：ANTHROPIC_AUTH_TOKEN 傳送 Authorization: Bearer；ANTHROPIC_API_KEY 傳送 x-api-key。兩者只傳其一。",
+    "impersonateClaudeCodeLabel": "模擬 Claude Code 用戶端",
+    "impersonateClaudeCodeHint": "閘道或其上游限制只能透過 Claude Code 使用時開啟：偽裝 User-Agent、anthropic-beta、x-app 請求標頭，並在系統提示首行注入 Claude Code 身分。",
+    "maxOutputTokensLabel": "最大輸出 tokens",
+    "maxOutputTokensPlaceholder": "留空則使用預設 8192",
+    "maxOutputTokensHint": "Codex 不會把 model_max_output_tokens 寫進請求體，預設上限 8192 容易在長回答或深度思考時被截斷（stop_reason=max_tokens）。此處設定會作為 Anthropic 的 max_tokens 覆蓋請求值。請勿超過該模型／閘道的真實輸出上限，否則可能 400。留空使用預設 8192。",
+    "promptCacheRoutingLabel": "提示詞快取路由",
+    "promptCacheRoutingAuto": "自動（建議）",
+    "promptCacheRoutingEnabled": "開啟",
+    "promptCacheRoutingDisabled": "關閉",
+    "promptCacheRoutingHint": "自動模式僅對已確認相容的上游傳送 prompt_cache_key；開啟可用於其他相容閘道，關閉可避免嚴格閘道因未知欄位回傳 400。只使用客戶端提供的穩定工作階段 ID。",
+    "defaultModelLabel": "預設模型",
+    "defaultModelPlaceholder": "例如: gpt-5.6-sol",
+    "defaultModelHint": "Codex 預設請求的模型，隨時可改，無需等待軟體更新供應商範本。留空且設定了模型映射時，預設使用映射第一行。",
+    "defaultModelNotInCatalog": "該模型不在模型映射中，Codex 的 /model 選單不會列出它（直接請求仍然有效）。",
+    "addToModelMapping": "加入映射",
+    "noCommonConfigToApply": "通用設定片段為空或沒有可寫入的內容"
   },
   "geminiConfig": {
     "envFile": "環境變數 (.env)",
@@ -1324,7 +1427,20 @@
     "modelExtraFieldKeyPlaceholder": "variants",
     "sdkOptions": "SDK 選項",
     "modelOptionKeyPlaceholder": "provider",
-    "modelOptionValuePlaceholder": "{\"order\": [\"baseten\"]}"
+    "modelOptionValuePlaceholder": "{\"order\": [\"baseten\"]}",
+    "toggleModelDetails": "展開或收合模型詳細資料",
+    "headers": "請求標頭",
+    "headersHint": "隨供應商請求傳送的選用 HTTP 請求標頭，例如 HTTP-Referer 或 X-Title。",
+    "addHeader": "新增請求標頭",
+    "headerName": "請求標頭",
+    "headerValue": "值",
+    "headerNamePlaceholder": "X-Title",
+    "headerValuePlaceholder": "CC Switch",
+    "removeHeader": "刪除請求標頭",
+    "noHeaders": "暫無自訂請求標頭",
+    "modelLimits": "Token 限制",
+    "limitContext": "上下文",
+    "limitOutput": "輸出"
   },
   "providerPreset": {
     "label": "預設供應商",
@@ -1391,7 +1507,8 @@
       "claude": "Claude Code",
       "codex": "Codex",
       "gemini": "Gemini",
-      "opencode": "OpenCode"
+      "opencode": "OpenCode",
+      "grokbuild": "Grok Build"
     },
     "rawInputLabel": "原始",
     "dataSources": "資料來源",
@@ -1508,7 +1625,55 @@
     "modelsDevTruncated": "僅顯示前 {{shown}} 條，共 {{total}} 條結果，請縮小搜尋範圍",
     "modelsDevDefaultHint": "預設展示最新發布的 {{shown}} 個模型（共 {{total}} 個），輸入關鍵字可全量搜尋",
     "cacheReadCostPerMillion": "快取讀取成本 (每百萬 tokens, USD)",
-    "cacheCreationCostPerMillion": "快取寫入成本 (每百萬 tokens, USD)"
+    "cacheCreationCostPerMillion": "快取寫入成本 (每百萬 tokens, USD)",
+    "unpriced": "未定價",
+    "rebuildCodex": {
+      "title": "Codex 用量維護",
+      "description": "從本機 rollout 日誌重新建構 Codex 工作階段用量",
+      "warning": "重建前會自動備份資料庫。若來源 JSONL 已刪除，對應歷史將無法重新匯入。",
+      "action": "重建 Codex 用量",
+      "confirmTitle": "確認重建 Codex 用量",
+      "confirmMessage": "此操作會清除現有 Codex 工作階段明細與彙總，再從本機 Codex 日誌重新匯入。\n\n已刪除日誌對應的歷史將遺失；缺少父 rollout 的 fork 會暫緩匯入。",
+      "confirmAction": "備份並重建",
+      "completed": "重建完成：匯入 {{imported}} 筆，錯誤 {{errors}}，疑似重複 {{suspected}}，暫緩檔案 {{deferred}}",
+      "failed": "Codex 用量重建失敗：{{error}}"
+    },
+    "liveEndTime": "結束時間跟隨當前時刻",
+    "liveEndTimeNow": "現在",
+    "modelsDevAutoSync": {
+      "title": "自動同步 models.dev 定價",
+      "description": "開啟後，CC Switch 會在啟動時定期擷取所選模型的最新價格，並儲存到本機定價檔案。",
+      "enabled": "已開啟",
+      "disabled": "已關閉",
+      "enableConfirmTitle": "開啟自動同步定價？",
+      "enableConfirmMessage": "開啟後，CC Switch 會在啟動時定期從 models.dev 更新所選模型的價格（最多每 6 小時一次）。相同模型 ID 的軟體內建價格和手動設定價格都會被覆寫。",
+      "enableConfirmAction": "開啟自動同步",
+      "configure": "選擇模型",
+      "configureTitle": "選擇自動同步定價的模型",
+      "configureDescription": "透過搜尋和供應商篩選選擇需要自動更新的模型，選擇結果儲存在本機。",
+      "commonModels": "自動包含常用模型",
+      "commonModelsDescription": "自動選擇 {{count}} 個近期 Claude、GPT、Gemini、Grok、DeepSeek、Qwen、MiMo、LongCat、Kimi、MiniMax 和 GLM 模型。",
+      "selectFiltered": "全選篩選結果（{{count}}）",
+      "clearFiltered": "清除篩選結果",
+      "selectedCount": "已選擇 {{count}} 個模型",
+      "selectionHint": "標準化模型 ID 相同的選項只會匯入一次。",
+      "commonBadge": "常用",
+      "selectionSaved": "自動定價同步選擇已儲存",
+      "syncSuccess": "定價同步完成：檢查 {{imported}} 個模型，更新 {{changed}} 個",
+      "syncFailed": "定價同步失敗：{{error}}",
+      "configLoadFailed": "載入本機定價設定失敗：{{error}}",
+      "neverSynced": "從未同步",
+      "lastSync": "上次同步",
+      "commonStatus": "常用模型",
+      "lastError": "上次自動同步失敗：{{error}}",
+      "localFile": "本機定價檔案",
+      "openFolder": "開啟資料夾",
+      "openFolderFailed": "開啟本機定價檔案資料夾失敗：{{error}}",
+      "reloadLocalFile": "重新載入檔案",
+      "localFileReloaded": "本機定價檔案已重新載入",
+      "localFileReloadFailed": "重新載入本機定價檔案失敗：{{error}}",
+      "syncNow": "立即同步"
+    }
   },
   "usageScript": {
     "title": "設定用量查詢",
@@ -1590,12 +1755,21 @@
     "fieldExtra": "• extra: 字串，擴充欄位，可自由補充需要展示的文字",
     "tip1": "• 變數 {{apiKey}} 和 {{baseUrl}} 會自動替換",
     "tip2": "• extractor 函式在沙盒環境中執行，支援 ES2020+ 語法",
-    "tip3": "• 整個設定必須用 () 包覆，形成物件實字運算式"
+    "tip3": "• 整個設定必須用 () 包覆，形成物件實字運算式",
+    "zhipuTeamHint": "智譜團隊套餐用量查詢需團隊 API Key（沿用本供應商憑據）+ 組織 ID + 專案 ID（作為請求標頭 bigmodel-organization / bigmodel-project）。組織與專案 ID 可在團隊管理後台用量頁的 URL 中找到。",
+    "zhipuTeamConsoleLink": "團隊用量頁：",
+    "organizationId": "組織 ID",
+    "organizationIdPlaceholder": "例如：org-xxxxxx",
+    "projectId": "專案 ID",
+    "projectIdPlaceholder": "例如：proj-xxxxxx"
   },
   "errors": {
     "usage_query_failed": "用量查詢失敗",
     "configLoadFailedTitle": "設定載入失敗",
-    "configLoadFailedMessage": "無法讀取設定檔：\n{{path}}\n\n錯誤詳情：\n{{detail}}\n\n請手動檢查 JSON 是否有效，或從同目錄的備份檔案（如 config.json.bak）還原。\n\n應用程式將退出以便您進行修復。"
+    "configLoadFailedMessage": "無法讀取設定檔：\n{{path}}\n\n錯誤詳情：\n{{detail}}\n\n請手動檢查 JSON 是否有效，或從同目錄的備份檔案（如 config.json.bak）還原。\n\n應用程式將退出以便您進行修復。",
+    "frontendCrashTitle": "介面遇到了問題",
+    "frontendCrashMessage": "已嘗試將錯誤資訊寫入應用程式診斷日誌。請重新載入介面；如果問題持續，請在提交 Issue 時附上日誌。",
+    "reloadInterface": "重新載入介面"
   },
   "presetSelector": {
     "title": "選擇設定類型",
@@ -1629,7 +1803,8 @@
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
         "hermes": "Hermes",
-        "kimi": "Kimi"
+        "kimi": "Kimi",
+        "grokbuild": "Grok Build"
       }
     },
     "userLevelPath": "使用者級 MCP 設定路徑",
@@ -2117,7 +2292,10 @@
         "checkPermission": "請檢查目錄權限",
         "uninstallFirst": "請先解除安裝已安裝的同名技能",
         "checkZipContent": "請確認 ZIP 檔案包含有效的技能目錄（含 SKILL.md 檔案）"
-      }
+      },
+      "invalidRepoRef": "倉庫位址不合法：{{owner}}/{{name}}",
+      "archiveTooLarge": "壓縮檔解壓後超過 {{limit_mb}} MB 上限，已中止",
+      "archiveTooManyEntries": "壓縮檔項目過多（{{count}}），上限 {{limit}}"
     },
     "repo": {
       "title": "管理技能儲存庫",
@@ -2209,7 +2387,8 @@
       "successSingle": "技能 {{name}} 已安裝",
       "successMultiple": "成功安裝 {{count}} 個技能",
       "noSkillsFound": "ZIP 檔案中未找到技能（需包含 SKILL.md 檔案）"
-    }
+    },
+    "unmanagedAvailable": "發現可匯入的技能"
   },
   "deeplink": {
     "confirmImport": "確認匯入供應商設定",
@@ -2258,7 +2437,11 @@
       "title": "批次匯入 MCP Servers",
       "targetApps": "目標應用程式",
       "serverCount": "MCP Servers ({{count}} 個)",
-      "enabledWarning": "匯入後將立即寫入所有指定應用程式的設定檔"
+      "enabledWarning": "匯入後將立即寫入所有指定應用程式的設定檔",
+      "command": "命令",
+      "args": "參數",
+      "env": "環境",
+      "url": "位址"
     },
     "prompt": {
       "title": "匯入系統提示詞",
@@ -2283,7 +2466,14 @@
     "usageApiKey": "用量 API Key",
     "usageBaseUrl": "用量查詢位址",
     "usageAutoInterval": "自動查詢",
-    "usageAutoIntervalValue": "每 {{minutes}} 分鐘"
+    "usageAutoIntervalValue": "每 {{minutes}} 分鐘",
+    "usageScriptCode": "指令碼程式碼",
+    "usageScriptWarning": "這是一段 JavaScript 程式碼，啟用後會在查詢用量時執行。請確認來源可信後再匯入。",
+    "risk": {
+      "envHijack": "該設定包含可改變處理程序載入行為的環境變數（例如注入動態程式庫、替換 CA 憑證），請確認來源可信。",
+      "privateEndpoint": "該位址指向本機或內部網路。若非你自建的本機服務，請勿匯入。",
+      "shellCommand": "該設定透過 shell 執行整段命令，實際執行的內容在參數裡，請逐行核對。"
+    }
   },
   "iconPicker": {
     "search": "搜尋圖示",
@@ -2335,7 +2525,8 @@
     },
     "tooltip": {
       "enabled": "{{app}} 故障轉移已啟用\n按佇列優先順序（P1→P2→...）選擇供應商",
-      "disabled": "啟用 {{app}} 故障轉移\n將立即切換至佇列 P1，並在失敗時自動切換至下一個"
+      "disabled": "啟用 {{app}} 故障轉移\n將立即切換至佇列 P1，並在失敗時自動切換至下一個",
+      "takeoverRequired": "請先接管 {{app}}，再啟用故障轉移"
     }
   },
   "proxy": {
@@ -2513,7 +2704,9 @@
     },
     "server": {
       "started": "路由服務已啟動 - {{address}}:{{port}}",
-      "startFailed": "啟動路由服務失敗：{{detail}}"
+      "startFailed": "啟動路由服務失敗：{{detail}}",
+      "stopped": "路由服務已停止",
+      "stopFailed": "停止路由服務失敗：{{detail}}"
     },
     "stoppedWithRestore": "路由服務已關閉，已還原所有路由設定",
     "stopWithRestoreFailed": "停止失敗：{{detail}}"
@@ -2643,7 +2836,8 @@
     "savedAndSynced": "已儲存並同步至所有應用程式",
     "saveAndSyncError": "儲存並同步失敗",
     "configJsonPreview": "設定 JSON 預覽",
-    "configJsonPreviewHint": "以下是將要同步至各應用程式的設定內容（僅覆寫顯示的欄位，保留其他自訂設定）"
+    "configJsonPreviewHint": "以下是將要同步至各應用程式的設定內容（僅覆寫顯示的欄位，保留其他自訂設定）",
+    "addedButSyncFailed": "通用供應商已新增，但同步失敗"
   },
   "omo": {
     "editProfile": "編輯 OMO 設定",
@@ -2851,12 +3045,100 @@
     "expired": "工作階段已過期",
     "expiredHint": "請執行 {{tool}} 命令重新整理登入",
     "queryFailed": "查詢失敗",
-    "refresh": "重新整理"
+    "refresh": "重新整理",
+    "thirtyDay": "30 天",
+    "monthly": "每月",
+    "credits": "額度"
   },
   "logout": {
     "confirmTitle": "登出？",
     "confirmMessage": "這將使目前工作階段失效並返回登入頁面。",
     "confirmAction": "登出",
     "serverInvalidationWarning": "已在本地登出，但伺服器工作階段失效可能失敗。"
+  },
+  "grokBuild": {
+    "apiBackend": "API Backend",
+    "contextWindow": "上下文視窗",
+    "contextWindowInvalid": "上下文視窗必須是正整數",
+    "profile": "用戶端模型檔位",
+    "rawConfig": "config.toml",
+    "invalidToml": "config.toml 格式錯誤：{{error}}"
+  },
+  "xaiOauth": {
+    "authStatus": "xAI OAuth 驗證",
+    "accountCount": "{{count}} 個可用帳號",
+    "reauthRequired": "需要重新登入",
+    "notAuthenticated": "尚未驗證",
+    "selectAccount": "選擇帳號",
+    "selectAccountPlaceholder": "選擇 xAI 帳號",
+    "useDefaultAccount": "使用預設帳號",
+    "accounts": "xAI 帳號",
+    "defaultAccount": "預設",
+    "expired": "憑證已失效",
+    "setAsDefault": "設為預設",
+    "removeAccount": "移除帳號",
+    "addOrReauth": "新增帳號或重新登入",
+    "login": "使用 xAI 登入",
+    "waitingForAuth": "正在等待 xAI 授權…",
+    "enterCode": "若瀏覽器未自動填入，請輸入：",
+    "retry": "重試",
+    "logoutAll": "移除所有 xAI 帳號",
+    "loginRequired": "請先登入 xAI 帳號"
+  },
+  "managedAuth": {
+    "selectedAccountNeedsReauth": "已綁定的帳號不存在或需要重新登入",
+    "selectedAccountUnavailable": "已綁定的帳號不存在或需要重新登入，請重新選擇帳號"
+  },
+  "dbUpgrade": {
+    "title": "資料庫版本過新",
+    "description": "目前資料庫由較新版本的 CC Switch 建立，需要升級應用後才能繼續使用。升級不會刪除你的資料。",
+    "versionInfo": "資料庫版本 v{{db}} · 應用支援 v{{supported}}",
+    "dbPath": "資料庫檔案",
+    "checking": "正在檢查可用更新…",
+    "updateAvailable": "發現新版本 v{{version}}，升級後即可繼續使用。",
+    "incompatibleTitle": "升級也無法解決",
+    "incompatibleDescription": "你已是最新版本，但資料庫版本（v{{db}}）仍高於本應用支援的版本（v{{supported}}）。該資料庫可能由第三方用戶端或更高版本建立，升級目前官方應用也無法相容。",
+    "preparing": "正在準備更新…",
+    "downloading": "正在下載更新…",
+    "upgradeNow": "升級應用",
+    "retry": "重試升級",
+    "openReleases": "開啟發佈頁",
+    "openConfigDir": "開啟設定目錄",
+    "quit": "結束"
+  },
+  "profiles": {
+    "switcherTooltip": {
+      "claude": "專案：一鍵切換 Claude Code 的供應商 / MCP / Skills / 記憶檔案",
+      "claude-desktop": "專案：一鍵切換 Claude Desktop 的供應商",
+      "codex": "專案：一鍵切換 Codex 的供應商 / MCP / Skills / 記憶檔案"
+    },
+    "none": "不使用專案",
+    "searchPlaceholder": "搜尋專案",
+    "empty": "尚無專案",
+    "createFromCurrent": "新建專案",
+    "createDescription": {
+      "claude": "把 Claude Code 目前的供應商、MCP、Skills、記憶檔案儲存為一個專案，之後可一鍵切換。",
+      "claude-desktop": "把 Claude Desktop 目前的供應商儲存為一個專案，之後可一鍵切換。",
+      "codex": "把 Codex 目前的供應商、MCP、Skills 和記憶檔案設定儲存為一個專案，之後可一鍵切換。"
+    },
+    "manage": "管理專案…",
+    "manageTitle": "管理專案",
+    "manageDescription": "專案是設定快照。切換專案時，目前設定會自動儲存回原專案。",
+    "namePlaceholder": "例如：開發、繪圖",
+    "rename": "重新命名",
+    "noSnapshotForScope": "本側未儲存",
+    "delete": "刪除",
+    "deleteConfirmTitle": "確認刪除",
+    "deleteConfirmMessage": "確定要刪除專案 \"{{name}}\" 嗎？不會改動任何現有設定。",
+    "createSuccess": "專案已建立",
+    "createFailed": "建立專案失敗: {{detail}}",
+    "updateSuccess": "專案已更新",
+    "updateFailed": "更新專案失敗: {{detail}}",
+    "deleteSuccess": "專案已刪除",
+    "deleteFailed": "刪除專案失敗: {{detail}}",
+    "applySuccess": "專案已套用",
+    "applyFailed": "套用專案失敗: {{detail}}",
+    "applyWarnings": "專案已套用，{{warningCount}} 條警告：\n{{details}}",
+    "clearSuccess": "已切換為不使用專案"
   }
 }

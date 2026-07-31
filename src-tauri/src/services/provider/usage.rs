@@ -57,6 +57,18 @@ pub(crate) async fn execute_and_format_usage_result(
             })
         }
         Err(err) => {
+            // 瞬时传输失败（send 失败/超时、读体中断）以 Err 传播，让前端 invoke
+            // reject → react-query retry 并保留上次成功值；按错误 key 判定而非
+            // 文案匹配。其余脚本/配置/HTTP 业务错误折叠成 success:false 展示文案。
+            if let AppError::Localized { key, .. } = &err {
+                if matches!(
+                    *key,
+                    "usage_script.request_failed" | "usage_script.read_response_failed"
+                ) {
+                    return Err(err);
+                }
+            }
+
             let lang = settings::get_settings()
                 .language
                 .unwrap_or_else(|| "zh".to_string());
@@ -413,11 +425,17 @@ pub async fn query_usage_with_templates(
                 access_key_id.as_deref().map(|s| !s.is_empty()).unwrap_or(false),
                 secret_access_key.as_deref().map(|s| !s.is_empty()).unwrap_or(false),
             );
+            let coding_plan_provider = usage_script.and_then(|s| s.coding_plan_provider.clone());
+            let team_organization_id = usage_script.and_then(|s| s.team_organization_id.clone());
+            let team_project_id = usage_script.and_then(|s| s.team_project_id.clone());
             let quota = crate::services::coding_plan::get_coding_plan_quota(
                 &base_url,
                 &api_key,
                 access_key_id.as_deref(),
                 secret_access_key.as_deref(),
+                coding_plan_provider.as_deref(),
+                team_organization_id.as_deref(),
+                team_project_id.as_deref(),
             )
             .await
             .map_err(AppError::Config)?;

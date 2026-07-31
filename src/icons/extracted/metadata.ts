@@ -2,6 +2,13 @@
 import { IconMetadata } from "@/types/icon";
 
 export const iconMetadata: Record<string, IconMetadata> = {
+  a6api: {
+    name: "a6api",
+    displayName: "A6API",
+    category: "ai-provider",
+    keywords: ["a6api", "a6", "aggregator", "relay", "gateway", "claude"],
+    defaultColor: "#3B82F6",
+  },
   aigocode: {
     name: "aigocode",
     displayName: "AIGoCode",
@@ -56,11 +63,29 @@ export const iconMetadata: Record<string, IconMetadata> = {
   },
   sudocode: {
     name: "sudocode",
-    displayName: "SudoCode",
+    displayName: "SudoCode.chat",
     category: "ai-provider",
     keywords: [
       "sudocode",
       "sudo code",
+      "chat",
+      "gateway",
+      "relay",
+      "claude",
+      "codex",
+      "gemini",
+      "openclaw",
+    ],
+    defaultColor: "#111111",
+  },
+  "sudocode-us": {
+    name: "sudocode-us",
+    displayName: "SudoCode.us",
+    category: "ai-provider",
+    keywords: [
+      "sudocode",
+      "sudo code",
+      "us",
       "gateway",
       "relay",
       "claude",
@@ -76,6 +101,13 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "ai-provider",
     keywords: ["qwen", "tongyi"],
     defaultColor: "#FF6A00",
+  },
+  amux: {
+    name: "amux",
+    displayName: "Amux",
+    category: "ai-provider",
+    keywords: ["amux", "amuxapi", "aggregator", "relay", "gateway", "gpt"],
+    defaultColor: "#000000",
   },
   anthropic: {
     name: "anthropic",
@@ -187,6 +219,13 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "cloud",
     keywords: ["cloudflare", "cdn"],
     defaultColor: "#F38020",
+  },
+  code0: {
+    name: "code0",
+    displayName: "Code0",
+    category: "ai-provider",
+    keywords: ["code0", "code0ai", "aggregator", "relay", "gateway", "gpt"],
+    defaultColor: "#20C050",
   },
   cohere: {
     name: "cohere",
@@ -387,6 +426,13 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "ai-provider",
     keywords: ["mistral"],
     defaultColor: "#FF7000",
+  },
+  nekocode: {
+    name: "nekocode",
+    displayName: "NekoCode",
+    category: "ai-provider",
+    keywords: ["nekocode", "neko", "aggregator", "relay", "gateway", "gpt"],
+    defaultColor: "#A64BC4",
   },
   newapi: {
     name: "newapi",

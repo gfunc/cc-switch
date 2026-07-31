@@ -15,6 +15,7 @@
 mod claude;
 mod codex;
 mod gemini;
+mod grokbuild;
 mod hermes;
 mod kimi;
 mod opencode;
@@ -31,6 +32,9 @@ pub use codex::{
 pub use gemini::{
     import_from_gemini, remove_server_from_gemini, sync_enabled_to_gemini,
     sync_single_server_to_gemini,
+};
+pub use grokbuild::{
+    import_from_grokbuild, remove_server_from_grokbuild, sync_single_server_to_grokbuild,
 };
 pub use hermes::{import_from_hermes, remove_server_from_hermes, sync_single_server_to_hermes};
 pub use kimi::{import_from_kimi, remove_server_from_kimi, sync_single_server_to_kimi};

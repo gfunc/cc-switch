@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { DatabaseUpgrade } from "./components/DatabaseUpgrade";
 import { UpdateProvider } from "./contexts/UpdateContext";
 import "./index.css";
 import i18n from "./i18n";
@@ -10,10 +11,22 @@ import { queryClient } from "@/lib/query";
 import { Toaster } from "@/components/ui/sonner";
 import { isTauri } from "@/lib/environment";
 import { installWebLogger, webLog } from "@/lib/webLogger";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { FrontendErrorBoundary } from "./components/FrontendErrorBoundary";
+import {
+  installGlobalErrorHandlers,
+  reportFrontendError,
+} from "./lib/frontendLogger";
+import {
+  MODELS_DEV_SYNC_CONFIG_QUERY_KEY,
+  syncModelsDevPricingOnStartup,
+} from "./lib/modelsDevAutoSync";
 
 // Install browser-side error/console capture as early as possible so failures
 // during bootstrap are reported to the backend (web mode only; no-op in Tauri).
 installWebLogger();
+installGlobalErrorHandlers();
 
 try {
   const ua = navigator.userAgent || "";
@@ -27,6 +40,8 @@ try {
 interface ConfigLoadErrorPayload {
   path?: string;
   error?: string;
+  /** "db_version_too_new" 表示数据库版本过新，渲染应用内升级恢复界面 */
+  kind?: string;
 }
 
 async function handleConfigLoadError(
@@ -68,47 +83,81 @@ async function handleConfigLoadError(
   await exit(1);
 }
 
-if (isTauri()) {
-  try {
-    const { listen } = await import("@tauri-apps/api/event");
-    void listen("configLoadError", async (evt) => {
-      await handleConfigLoadError(evt.payload as ConfigLoadErrorPayload | null);
-    });
-  } catch (e) {
-    console.error("订阅 configLoadError 事件失败", e);
-  }
+// 监听后端的配置加载错误事件：仅提醒用户并强制退出，不修改任何配置文件
+try {
+  void listen("configLoadError", async (evt) => {
+    await handleConfigLoadError(evt.payload as ConfigLoadErrorPayload | null);
+  });
+} catch (e) {
+  // 忽略事件订阅异常（例如在非 Tauri 环境下）
+  reportFrontendError("config_load_error_listener", e);
 }
 
 async function bootstrap() {
-  if (isTauri()) {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const initError = (await invoke(
-        "get_init_error",
-      )) as ConfigLoadErrorPayload | null;
-      if (initError && (initError.path || initError.error)) {
-        await handleConfigLoadError(initError);
-        return;
-      }
-    } catch (e) {
-      console.error("拉取初始化错误失败", e);
+  // 启动早期主动查询后端初始化错误，避免事件竞态
+  try {
+    const initError = (await invoke(
+      "get_init_error",
+    )) as ConfigLoadErrorPayload | null;
+    if (initError && initError.kind === "db_version_too_new") {
+      // 数据库版本过新：渲染应用内「升级应用」恢复界面，不进入正常 App
+      ReactDOM.createRoot(document.getElementById("root")!).render(
+        <React.StrictMode>
+          <FrontendErrorBoundary>
+            <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
+              <DatabaseUpgrade payload={initError} />
+              <Toaster />
+            </ThemeProvider>
+          </FrontendErrorBoundary>
+        </React.StrictMode>,
+      );
+      return;
     }
+    if (initError && (initError.path || initError.error)) {
+      await handleConfigLoadError(initError);
+      // 注意：不会执行到这里，因为 exit(1) 会终止进程
+      return;
+    }
+  } catch (e) {
+    // 忽略拉取错误，继续渲染
+    reportFrontendError("get_init_error", e);
   }
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
-          <UpdateProvider>
-            <App />
-            <Toaster />
-          </UpdateProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <FrontendErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider defaultTheme="system" storageKey="cc-switch-theme">
+            <UpdateProvider>
+              <App />
+              <Toaster />
+            </UpdateProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </FrontendErrorBoundary>
     </React.StrictMode>,
   );
 
   webLog.info("app mounted", { mode: isTauri() ? "tauri" : "web" });
+
+  void syncModelsDevPricingOnStartup()
+    .then((result) => {
+      if (!result.skipped) {
+        return Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["usage"] }),
+          queryClient.invalidateQueries({
+            queryKey: MODELS_DEV_SYNC_CONFIG_QUERY_KEY,
+          }),
+        ]);
+      }
+    })
+    .catch((error) => {
+      // 离线或 models.dev 暂时不可用不应阻塞应用启动。
+      reportFrontendError("models_dev_startup_sync", error);
+      void queryClient.invalidateQueries({
+        queryKey: MODELS_DEV_SYNC_CONFIG_QUERY_KEY,
+      });
+    });
 }
 
 void bootstrap();

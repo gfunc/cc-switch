@@ -10,7 +10,12 @@ import { generateUUID } from "@/utils/uuid";
 import { openclawKeys } from "@/hooks/useOpenClaw";
 import { invalidateHermesProviderCaches } from "@/hooks/useHermes";
 import { invalidateKimiProviderCaches } from "@/hooks/useKimi";
+import { proxyKeys } from "@/lib/query/proxy";
 import { usageKeys } from "@/lib/query/usage";
+import {
+  CODEX_OFFICIAL_PROVIDER_ID,
+  GROKBUILD_OFFICIAL_PROVIDER_ID,
+} from "@/utils/providerCapabilities";
 
 export const useAddProviderMutation = (appId: AppId) => {
   const queryClient = useQueryClient();
@@ -22,12 +27,16 @@ export const useAddProviderMutation = (appId: AppId) => {
         providerKey?: string;
         addToLive?: boolean;
         ensureClaudeDesktopOfficialSeed?: boolean;
+        ensureCodexOfficialSeed?: boolean;
+        ensureGrokBuildOfficialSeed?: boolean;
       },
     ) => {
       const {
         providerKey: _providerKey,
         addToLive,
         ensureClaudeDesktopOfficialSeed,
+        ensureCodexOfficialSeed,
+        ensureGrokBuildOfficialSeed,
         ...rest
       } = providerInput;
 
@@ -37,6 +46,26 @@ export const useAddProviderMutation = (appId: AppId) => {
         const officialProvider = providers["claude-desktop-official"];
         if (!officialProvider) {
           throw new Error("Claude Desktop official provider was not created");
+        }
+        return officialProvider;
+      }
+
+      if (appId === "codex" && ensureCodexOfficialSeed) {
+        await providersApi.ensureCodexOfficialProvider();
+        const providers = await providersApi.getAll(appId);
+        const officialProvider = providers[CODEX_OFFICIAL_PROVIDER_ID];
+        if (!officialProvider) {
+          throw new Error("Codex official provider was not created");
+        }
+        return officialProvider;
+      }
+
+      if (appId === "grokbuild" && ensureGrokBuildOfficialSeed) {
+        await providersApi.ensureGrokBuildOfficialProvider();
+        const providers = await providersApi.getAll(appId);
+        const officialProvider = providers[GROKBUILD_OFFICIAL_PROVIDER_ID];
+        if (!officialProvider) {
+          throw new Error("Grok Build official provider was not created");
         }
         return officialProvider;
       }
@@ -158,7 +187,7 @@ export const useUpdateProviderMutation = (appId: AppId) => {
       await queryClient.invalidateQueries({
         queryKey: usageKeys.script(provider.id, appId),
       });
-      if (originalId) {
+      if (originalId && originalId !== provider.id) {
         await queryClient.invalidateQueries({
           queryKey: usageKeys.script(originalId, appId),
         });
@@ -278,7 +307,7 @@ export const useSwitchProviderMutation = (appId: AppId) => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["providers", appId] });
       if (appId === "claude-desktop") {
-        await queryClient.invalidateQueries({ queryKey: ["proxyStatus"] });
+        await queryClient.invalidateQueries({ queryKey: proxyKeys.status });
         await queryClient.invalidateQueries({
           queryKey: ["claudeDesktopStatus"],
         });

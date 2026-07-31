@@ -67,7 +67,7 @@ describe("generic hooks", () => {
     it("keeps last valid value when current becomes null", () => {
       const { result, rerender } = renderHook(
         ({ value }) => useLastValidValue(value),
-        { initialProps: { value: "valid" } },
+        { initialProps: { value: "valid" as string | null | undefined } },
       );
       rerender({ value: null });
       expect(result.current).toBe("valid");

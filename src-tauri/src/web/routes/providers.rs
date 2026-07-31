@@ -61,6 +61,11 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
             "/ensure-claude-desktop-official",
             post(ensure_claude_desktop_official),
         )
+        .route("/ensure-codex-official", post(ensure_codex_official))
+        .route(
+            "/ensure-grokbuild-official",
+            post(ensure_grokbuild_official),
+        )
         .route("/:id", get(get_provider))
         .route("/:id", put(update_provider))
         .route("/:id", delete(delete_provider))
@@ -113,6 +118,9 @@ async fn query_coding_plan_quota(
         &req.api_key,
         req.access_key_id.as_deref(),
         req.secret_access_key.as_deref(),
+        None,
+        None,
+        None,
     )
     .await
     {
@@ -529,6 +537,38 @@ async fn ensure_claude_desktop_official(
     match desktop.db.ensure_official_seed_by_id(
         crate::database::CLAUDE_DESKTOP_OFFICIAL_PROVIDER_ID,
         AppType::ClaudeDesktop,
+    ) {
+        Ok(changed) => Json(ApiResponse::success(changed)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
+async fn ensure_codex_official(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<bool>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match desktop.db.ensure_official_seed_by_id(
+        crate::database::CODEX_OFFICIAL_PROVIDER_ID,
+        AppType::Codex,
+    ) {
+        Ok(changed) => Json(ApiResponse::success(changed)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
+async fn ensure_grokbuild_official(
+    State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
+) -> Json<ApiResponse<bool>> {
+    let desktop = match state.desktop() {
+        Ok(d) => d,
+        Err(e) => return Json(ApiResponse::error(e)),
+    };
+    match desktop.db.ensure_official_seed_by_id(
+        crate::database::GROKBUILD_OFFICIAL_PROVIDER_ID,
+        AppType::GrokBuild,
     ) {
         Ok(changed) => Json(ApiResponse::success(changed)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
@@ -1203,7 +1243,7 @@ fn sync_updated_provider_runtime_state(
                 }
             }
         }
-        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::Kimi => {
+        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::Kimi | AppType::GrokBuild => {
             // Additive-mode apps are managed in their own live files and don't have exclusive "current" live overwrite.
         }
         AppType::ClaudeDesktop => {

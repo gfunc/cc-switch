@@ -31,7 +31,9 @@ describe("skillErrorParser", () => {
   });
 
   describe("formatSkillError", () => {
-    const t = vi.fn((key: string, _opts?: any) => key);
+    const t = vi.fn(
+      (key: string, _opts?: any) => key,
+    ) as unknown as Parameters<typeof formatSkillError>[1];
 
     it("formats structured errors with i18n keys", () => {
       const error = JSON.stringify({

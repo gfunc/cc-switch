@@ -300,7 +300,9 @@ describe("decodeBase64Utf8 - Base64 decoding", () => {
   describe("URL/spaces handling (edge cases from URL parsing)", () => {
     it("handles string with leading/trailing spaces", () => {
       const encoded = "  SGVsbG8=  ";
-      expect(decodeBase64Utf8(encoded)).toBe("Hello");
+      // Spaces are preserved (they may be URL-decoded '+') per backend parity;
+      // undecodable input falls back to the original string without crashing.
+      expect(decodeBase64Utf8(encoded)).toBe(encoded);
     });
 
     it("handles string with spaces - function replaces spaces with +", () => {

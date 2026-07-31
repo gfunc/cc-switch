@@ -40,3 +40,15 @@ export async function extractCommonConfigSnippet(
     settingsConfig: options?.settingsConfig,
   });
 }
+
+export async function updateTomlCommonConfigSnippet(
+  configToml: string,
+  snippetToml: string,
+  enabled: boolean,
+): Promise<string> {
+  return post("/settings/common-config/apply-snippet", {
+    configToml,
+    snippetToml,
+    enabled,
+  });
+}

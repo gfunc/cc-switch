@@ -20,6 +20,7 @@ import { workspaceApi as webWorkspaceApi } from "./web/workspace";
 import * as tauriConfigApi from "./config";
 import { authApi } from "./auth";
 import { subscriptionApi } from "./subscription";
+import { profilesApi } from "./profiles";
 
 import {
   providersApi as webProvidersApi,
@@ -39,9 +40,15 @@ import { hermesApi as webHermesApi } from "./web/hermes";
 export type { AppId } from "./types";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
-export type { GitHubAccount } from "./copilot";
+export type { Profile, ProfilePayload, ProfilesResponse } from "./profiles";
+export type {
+  CopilotDeviceCodeResponse,
+  CopilotAuthStatus,
+  GitHubAccount,
+} from "./copilot";
 export type {
   ManagedAuthProvider,
+  ManagedAuthAccount,
   ManagedAuthStatus,
   ManagedAuthDeviceCodeResponse,
 } from "./auth";
@@ -64,6 +71,7 @@ export const openclawApi = isTauri() ? tauriOpenclawApi : webOpenclawApi;
 export const hermesApi = isTauri() ? tauriHermesApi : webHermesApi;
 export { usageApi };
 export { vscodeApi };
+export { profilesApi };
 export const workspaceApi = isTauri() ? tauriWorkspaceApi : webWorkspaceApi;
 export { authApi };
 export * as copilotApi from "./copilot";

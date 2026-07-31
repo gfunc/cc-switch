@@ -29,12 +29,38 @@ pub fn routes() -> Router<(Arc<AppState>, Arc<WsState>)> {
             "/common-config/extract",
             post(extract_common_config_snippet),
         )
+        .route(
+            "/common-config/apply-snippet",
+            post(apply_toml_snippet),
+        )
         .route("/rectifier-config", get(get_rectifier_config))
         .route("/rectifier-config", put(set_rectifier_config))
         .route("/optimizer-config", get(get_optimizer_config))
         .route("/optimizer-config", put(set_optimizer_config))
         .route("/log-config", get(get_log_config))
         .route("/log-config", put(set_log_config))
+}
+
+#[derive(Deserialize)]
+struct ApplyTomlSnippetRequest {
+    #[serde(rename = "configToml")]
+    config_toml: String,
+    #[serde(rename = "snippetToml")]
+    snippet_toml: String,
+    enabled: bool,
+}
+
+async fn apply_toml_snippet(
+    Json(req): Json<ApplyTomlSnippetRequest>,
+) -> Json<ApiResponse<String>> {
+    match crate::services::provider::update_toml_common_config_snippet(
+        &req.config_toml,
+        &req.snippet_toml,
+        req.enabled,
+    ) {
+        Ok(updated) => Json(ApiResponse::success(updated)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
 }
 
 #[derive(Deserialize)]
@@ -248,6 +274,7 @@ async fn get_config_dir(
         }
         Ok(AppType::Codex) => crate::codex_config::get_codex_config_dir(),
         Ok(AppType::Gemini) => crate::gemini_config::get_gemini_dir(),
+        Ok(AppType::GrokBuild) => crate::grok_config::get_grok_config_dir(),
         Ok(AppType::OpenCode) => crate::opencode_config::get_opencode_dir(),
         Ok(AppType::OpenClaw) => crate::openclaw_config::get_openclaw_dir(),
         Ok(AppType::Hermes) => crate::hermes_config::get_hermes_dir(),
@@ -442,15 +469,6 @@ async fn set_optimizer_config(
     State((state, _)): State<(Arc<AppState>, Arc<WsState>)>,
     Json(config): Json<crate::proxy::types::OptimizerConfig>,
 ) -> Json<ApiResponse<bool>> {
-    // Validate cache_ttl: only allow known values (matches desktop command).
-    match config.cache_ttl.as_str() {
-        "5m" | "1h" => {}
-        other => {
-            return Json(ApiResponse::error(format!(
-                "Invalid cache_ttl value: '{other}'. Allowed values: '5m', '1h'"
-            )))
-        }
-    }
     let json = match serde_json::to_string(&config) {
         Ok(j) => j,
         Err(e) => return Json(ApiResponse::error(e.to_string())),

@@ -27,8 +27,12 @@ export const providersApi = {
     return get(`/providers/current?app=${appId}`);
   },
 
-  async add(provider: Provider, appId: AppId): Promise<boolean> {
-    return post("/providers", { provider, app: appId });
+  async add(
+    provider: Provider,
+    appId: AppId,
+    addToLive?: boolean,
+  ): Promise<boolean> {
+    return post("/providers", { provider, app: appId, addToLive });
   },
 
   async update(
@@ -138,6 +142,14 @@ export const providersApi = {
 
   async ensureClaudeDesktopOfficialProvider(): Promise<boolean> {
     return post("/providers/ensure-claude-desktop-official", {});
+  },
+
+  async ensureCodexOfficialProvider(): Promise<boolean> {
+    return post("/providers/ensure-codex-official", {});
+  },
+
+  async ensureGrokBuildOfficialProvider(): Promise<boolean> {
+    return post("/providers/ensure-grokbuild-official", {});
   },
 };
 
