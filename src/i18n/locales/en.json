@@ -2118,7 +2118,8 @@
       "legacyTimeout": "agents.defaults.timeout is deprecated. Save the Agents panel to migrate it to timeoutSeconds.",
       "stringifiedEnvVars": "env.vars should be an object, but the current value looks stringified or malformed.",
       "stringifiedShellEnv": "env.shellEnv should be an object, but the current value looks stringified or malformed.",
-      "parseFailed": "openclaw.json could not be parsed as valid JSON5. Fix the file before editing it here."
+      "parseFailed": "openclaw.json could not be parsed as valid JSON5. Fix the file before editing it here.",
+      "configNotFound": "OpenClaw config file not found. The config panel will appear empty until the file is created or imported."
     },
     "primaryModel": "Primary Model",
     "fallbackModel": "Fallback Model"

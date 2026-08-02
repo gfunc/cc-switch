@@ -2118,7 +2118,8 @@
       "legacyTimeout": "agents.defaults.timeout は非推奨です。Agents パネルを保存すると timeoutSeconds に移行されます。",
       "stringifiedEnvVars": "env.vars はオブジェクトである必要がありますが、現在の値は文字列化または破損しているようです。",
       "stringifiedShellEnv": "env.shellEnv はオブジェクトである必要がありますが、現在の値は文字列化または破損しているようです。",
-      "parseFailed": "openclaw.json を有効な JSON5 として解析できませんでした。ここで編集する前にファイルを修正してください。"
+      "parseFailed": "openclaw.json を有効な JSON5 として解析できませんでした。ここで編集する前にファイルを修正してください。",
+      "configNotFound": "OpenClaw 設定ファイルが見つかりません。ファイルを作成またはインポートするまで、設定パネルは空のまま表示されます。"
     },
     "primaryModel": "プライマリモデル",
     "fallbackModel": "フォールバックモデル"

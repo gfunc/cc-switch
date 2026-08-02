@@ -2119,7 +2119,8 @@
       "legacyTimeout": "agents.defaults.timeout 已廢棄。開啟並儲存 Agents 面板即可遷移至 timeoutSeconds。",
       "stringifiedEnvVars": "env.vars 應為物件，但目前值看起來像被字串化或已損壞。",
       "stringifiedShellEnv": "env.shellEnv 應為物件，但目前值看起來像被字串化或已損壞。",
-      "parseFailed": "openclaw.json 不是合法 JSON5。請先修復檔案，再透過這裡編輯。"
+      "parseFailed": "openclaw.json 不是合法 JSON5。請先修復檔案，再透過這裡編輯。",
+      "configNotFound": "找不到 OpenClaw 設定檔。在建立或匯入設定檔之前，設定面板會顯示為空白。"
     },
     "primaryModel": "預設模型",
     "fallbackModel": "備用模型"

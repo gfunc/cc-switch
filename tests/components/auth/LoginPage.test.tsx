@@ -105,6 +105,24 @@ describe("LoginPage Component", () => {
     expect(setAuthTokenMock).not.toHaveBeenCalled();
   });
 
+  it("shows error toast on network failure", async () => {
+    loginMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const onLogin = vi.fn();
+
+    renderLoginPage({ onLogin });
+
+    const input = screen.getByPlaceholderText("Paste your auth token here");
+    fireEvent.change(input, { target: { value: "valid-looking-token" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalled();
+    });
+    expect(setAuthTokenMock).not.toHaveBeenCalled();
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
   it("disables the input and submit button during submit", async () => {
     let resolveLogin: (value: string) => void;
     const loginPromise = new Promise<string>(

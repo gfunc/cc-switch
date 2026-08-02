@@ -312,8 +312,8 @@ mod tests {
     #[test]
     #[serial]
     fn scan_sessions_discovers_claude_logs_under_test_home() {
-        let home = tempdir().expect("tempdir");
-        let projects = home.path().join(".claude/projects/proj-a");
+        let env = crate::testing::TestEnv::new();
+        let projects = env.home_path().join(".claude/projects/proj-a");
         std::fs::create_dir_all(&projects).expect("mkdir projects");
 
         // A normal session.
@@ -333,13 +333,7 @@ mod tests {
         )
         .expect("write agent session");
 
-        let prev = std::env::var_os("CC_SWITCH_TEST_HOME");
-        std::env::set_var("CC_SWITCH_TEST_HOME", home.path());
         let sessions = scan_sessions();
-        match prev {
-            Some(v) => std::env::set_var("CC_SWITCH_TEST_HOME", v),
-            None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
-        }
 
         let found: Vec<_> = sessions
             .iter()

@@ -1101,9 +1101,7 @@ mod tests {
     #[test]
     #[serial]
     fn scan_health_warns_when_config_file_missing() {
-        let temp = tempfile::tempdir().unwrap();
-        std::env::set_var("CC_SWITCH_TEST_HOME", temp.path());
-        std::env::set_var("HOME", temp.path());
+        let _env = crate::testing::TestEnv::new();
         // Ensure no openclaw.json exists.
 
         let warnings = scan_openclaw_config_health().unwrap();

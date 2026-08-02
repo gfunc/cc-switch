@@ -108,18 +108,18 @@ This centralizes error handling and envelope parsing in `web-client.ts`.
 
 Use Playwright's `globalSetup` + `globalTeardown` or a `test.beforeAll` / `test.afterAll` pattern:
 
-1. **Start**: Spawn `pnpm headless:debug:web` as a background subprocess
-2. **Wait**: Poll `http://localhost:13001/health` until `status === "healthy"` (timeout 30s)
-3. **Token**: Execute `./src-tauri/target/debug/cc-switch-web generate-token` (or hit a test-only endpoint) to get a valid token
+1. **Start**: Spawn `AUTH_TOKEN=e2e-test-token CC_SWITCH_WEB_PORT=13002 CC_SWITCH_DB_PATH=/tmp/cc-switch-e2e.db pnpm headless:debug:web` as a background subprocess (see `playwright.config.ts` — the env vars are required, not optional)
+2. **Wait**: Poll `http://localhost:13002/health` until `status === "healthy"` (timeout 30s)
+3. **Token**: The static `AUTH_TOKEN=e2e-test-token` unlocks `POST /api/v1/auth/generate`; use it to mint a session JWT for the login flow
 4. **Run tests**
 5. **Cleanup**: SIGTERM the server process, wait for exit
 
 ### Test Steps
 
 ```
-1. Navigate to http://localhost:13001
+1. Navigate to http://localhost:13002
 2. Assert: Login page visible ("CC Switch" heading, token input)
-3. Fill token input with generated token
+3. Fill token input with generated token (from `/auth/generate` using the static `AUTH_TOKEN`)
 4. Click "Sign In"
 5. Assert: Redirected to dashboard (URL no longer /login)
 6. Assert: AppSwitcher tabs visible (Claude / Codex / Gemini)
@@ -150,10 +150,10 @@ Test File → render(<LoginPage onLogin={mock} />)
 ### E2E Test Flow
 
 ```
-Playwright Worker → globalSetup.spawn("pnpm headless:debug:web")
+Playwright Worker → globalSetup.spawn("AUTH_TOKEN=e2e-test-token CC_SWITCH_WEB_PORT=13002 ... pnpm headless:debug:web")
                 → poll /health
-                → exec("generate-token") → token
-                → page.goto("http://localhost:13001")
+                → POST /auth/generate with AUTH_TOKEN → session JWT
+                → page.goto("http://localhost:13002")
                 → page.fill("[id=token]", token)
                 → page.click("button[type=submit]")
                 → expect(page).toHaveURL(/^(?!.*login)/)

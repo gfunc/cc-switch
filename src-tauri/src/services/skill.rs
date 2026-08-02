@@ -46,6 +46,16 @@ pub enum SkillStorageLocation {
     Unified,
 }
 
+impl SkillStorageLocation {
+    /// 返回 DB 中存储的字符串键（与 serde snake_case 序列化一致）
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SkillStorageLocation::CcSwitch => "cc_switch",
+            SkillStorageLocation::Unified => "unified",
+        }
+    }
+}
+
 /// 可发现的技能（来自仓库）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoverableSkill {
@@ -1216,10 +1226,7 @@ impl SkillService {
         // 需要同步更新 skillStorageLocation，否则前端刷新后仍显示旧值。
         // 桌面端使用文件设置，DB 中可能没有 app_settings，此时同步逻辑静默跳过。
         let sync_db_skill_storage_location = |target: SkillStorageLocation| {
-            let location_str = match target {
-                SkillStorageLocation::CcSwitch => "cc_switch",
-                SkillStorageLocation::Unified => "unified",
-            };
+            let location_str = target.as_str();
             if let Ok(conn) = db.conn.lock() {
                 let stored: Option<String> = conn
                     .prepare("SELECT value FROM settings WHERE key = ?1")
@@ -1326,43 +1333,6 @@ impl SkillService {
         // 3. 文件移动完成后才持久化设置
         crate::settings::set_skill_storage_location(target)?;
         sync_db_skill_storage_location(target);
-
-        // 3.5 web/Docker 模式下设置存储在 SQLite 的 app_settings 记录中，
-        // 需要同步更新，否则前端刷新后仍显示旧值。
-        let location_str = match target {
-            SkillStorageLocation::CcSwitch => "cc_switch",
-            SkillStorageLocation::Unified => "unified",
-        };
-        if let Ok(conn) = db.conn.lock() {
-            let stored: Option<String> = conn
-                .prepare("SELECT value FROM settings WHERE key = ?1")
-                .ok()
-                .and_then(|mut stmt| {
-                    stmt.query_row(["app_settings"], |row| row.get::<usize, String>(0))
-                        .ok()
-                });
-            if let Some(json_str) = stored {
-                if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                    value["skillStorageLocation"] =
-                        serde_json::Value::String(location_str.to_string());
-                    match serde_json::to_string(&value) {
-                        Ok(new_json) => {
-                            if let Err(e) = conn.execute(
-                                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-                                rusqlite::params!["app_settings", new_json],
-                            ) {
-                                log::warn!(
-                                    "[migrate_storage] 无法同步 web settings 中的 skillStorageLocation: {e}"
-                                );
-                            }
-                        }
-                        Err(e) => log::warn!("[migrate_storage] 序列化 settings 失败: {e}"),
-                    }
-                }
-            }
-        } else {
-            log::warn!("[migrate_storage] 无法获取数据库锁以同步 web settings");
-        }
 
         // 4. 刷新所有应用目录的 symlink（指向新 SSOT）
         for app in AppType::all() {

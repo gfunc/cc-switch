@@ -39,6 +39,11 @@ function getWarningText(
         defaultValue:
           "openclaw.json could not be parsed as valid JSON5. Fix the file before editing it here.",
       });
+    case "config_not_found":
+      return t("openclaw.health.configNotFound", {
+        defaultValue:
+          "OpenClaw config file not found. The config panel will appear empty until the file is created or imported.",
+      });
     default:
       return fallback;
   }

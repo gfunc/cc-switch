@@ -76,10 +76,13 @@ In `src-tauri/src/web/routes/auth.rs`:
 
 ### Removed endpoints
 
-- `POST /auth/verify` — deleted.
-- `POST /auth/generate` — deleted.
 - `GET /auth/token-reveal-enabled` — deleted.
 - `token_reveal_enabled()` helper — deleted.
+
+> Status note: `/auth/verify` and `/auth/generate` were originally slated for
+> deletion here, but the merged upstream (origin/web-ui) architecture retains
+> both — `/auth/verify` for token validation and `/auth/generate` for the E2E
+> token flow. The E2E suite depends on `/auth/generate`, so both routes stay.
 
 ### Removed env var
 

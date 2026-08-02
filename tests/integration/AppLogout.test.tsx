@@ -2,6 +2,7 @@ import { Suspense, type ComponentType } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { isWebMode } from "@/lib/environment";
 import {
   resetProviderState,
   setProviders,
@@ -21,9 +22,9 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/environment", () => ({
-  isTauri: () => true,
-  isWebMode: () => true,
-  isDesktop: () => true,
+  isTauri: vi.fn(() => true),
+  isWebMode: vi.fn(() => true),
+  isDesktop: vi.fn(() => true),
 }));
 
 vi.mock("@/components/providers/ProviderList", () => ({
@@ -86,6 +87,7 @@ describe("App logout", () => {
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     toastWarningMock.mockReset();
+    vi.mocked(isWebMode).mockImplementation(() => true);
   });
 
   it("renders logout button in web mode", async () => {
@@ -140,5 +142,31 @@ describe("App logout", () => {
     await waitFor(() =>
       expect(document.body).toHaveAttribute("data-scroll-locked"),
     );
+  });
+
+  it("does not render logout button in Tauri mode", async () => {
+    vi.mocked(isWebMode).mockImplementation(() => false);
+    setProviders("claude", {
+      "claude-1": {
+        id: "claude-1",
+        name: "Claude Provider",
+        settingsConfig: {},
+        category: "custom",
+        sortIndex: 0,
+        createdAt: Date.now(),
+      },
+    });
+    setCurrentProviderId("claude", "claude-1");
+
+    const { default: App } = await import("@/App");
+    renderApp(App);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("provider-list").textContent).toContain(
+        "claude-1",
+      ),
+    );
+
+    expect(screen.queryByTitle("common.logout")).not.toBeInTheDocument();
   });
 });
